@@ -91,6 +91,13 @@ def _check_compare(
             f"{expected_type} compare entity {entity.get('key')} missing metrics: {sorted(missing)}",
             failures,
         )
+        if expected_type == "institution":
+            for key in (
+                "institution_ror_id",
+                "institution_match_confidence",
+                "institution_normalized",
+            ):
+                _require(key in entity, f"institution compare entity missing {key}", failures)
 
 
 def _check_progress(data: dict[str, Any] | None, failures: list[str]) -> None:

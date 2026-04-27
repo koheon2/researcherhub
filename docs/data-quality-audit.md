@@ -260,5 +260,29 @@ Flag 분포:
 
 - DOI prefix/provider별 coverage와 error rate를 materialized summary로 계산
 - 표본 외부 대조 결과를 CSV로 저장할 수 있는 audit workflow 추가
-- ROR 기반 publication-time institution normalization
+- ambiguous/unmatched 상위 기관에 대한 alias curation 또는 ROR API fallback
 - warning flag를 UI/API provenance로 더 명확히 노출
+
+## 적용된 Institution Normalization 결과
+
+Milestone 2.5에서 로컬 OpenAlex institutions snapshot과 ROR dump 기반 publication-time 기관 정규화 v0를 적용했다. 원본 `paper_author_affiliations.institution_name`은 보존하고, `institution_name_matches` mapping layer를 summary refresh 시 join한다.
+
+적용 결과:
+
+| 항목 | count |
+| --- | ---: |
+| distinct institution/country pairs | 63,985 |
+| matched pairs | 63,707 |
+| ambiguous pairs | 209 |
+| unmatched pairs | 69 |
+| matched affiliation rows | 21,352,995 |
+| affiliation rows with ROR match | 21,352,995 |
+
+대표 smoke match:
+
+| raw institution | country | canonical | ROR |
+| --- | --- | --- | --- |
+| Massachusetts Institute of Technology | US | Massachusetts Institute of Technology | `042nb2s44` |
+| Stanford University | US | Stanford University | `00f54p054` |
+| Korea Advanced Institute of Science and Technology | KR | Korea Advanced Institute of Science and Technology | `05apxxy63` |
+| Seoul National University | KR | Seoul National University | `04h9pn542` |

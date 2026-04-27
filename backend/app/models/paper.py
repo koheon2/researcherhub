@@ -98,6 +98,33 @@ class PaperAuthorAffiliation(Base):
     )
 
 
+class InstitutionNameMatch(Base):
+    __tablename__ = "institution_name_matches"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    raw_institution_name = Column(String(300), nullable=False)
+    country_code = Column(String(5), nullable=False)
+    canonical_name = Column(String(300))
+    institution_ror_id = Column(String(100))
+    openalex_institution_id = Column(String(32))
+    match_source = Column(String(64), nullable=False)
+    confidence = Column(Float, nullable=False, default=0.0)
+    status = Column(String(16), nullable=False)
+    observed_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint(
+            "raw_institution_name",
+            "country_code",
+            name="uq_institution_name_matches_identity",
+        ),
+        Index("ix_inm_status", "status"),
+        Index("ix_inm_ror_id", "institution_ror_id"),
+        Index("ix_inm_canonical_name", "canonical_name"),
+        Index("ix_inm_country_status", "country_code", "status"),
+    )
+
+
 class PaperFacet(Base):
     __tablename__ = "paper_facets"
 

@@ -159,28 +159,42 @@ async def _institution_leaderboard(db: AsyncSession, field: str | None, limit: i
             **QUALITY_PROVENANCE,
         }
 
-    base = select(
-        PaperAuthorAffiliation.institution_name.label("institution"),
-        func.count(PaperAuthorAffiliation.id).label("contributions"),
-        func.count(distinct(PaperAuthorAffiliation.paper_id)).label("papers"),
-        func.sum(Paper.citations).label("total_citations"),
-    ).join(Paper, Paper.id == PaperAuthorAffiliation.paper_id).where(
-        PaperAuthorAffiliation.institution_name.isnot(None)
-    )
-
-    if subfield:
-        base = base.where(Paper.subfield == subfield)
-
-    base = base.where(
-        ~exists()
-        .where(PaperQualityFlag.paper_id == Paper.id)
-        .where(PaperQualityFlag.severity == "exclude")
-    )
-
     result = await db.execute(
-        base.group_by(PaperAuthorAffiliation.institution_name)
-        .order_by(func.count(PaperAuthorAffiliation.id).desc())
-        .limit(limit)
+        text("""
+        WITH excluded AS (
+            SELECT DISTINCT paper_id
+            FROM paper_quality_flags
+            WHERE severity = 'exclude'
+        )
+        SELECT
+            CASE
+                WHEN inm.status = 'matched' AND inm.canonical_name IS NOT NULL
+                    THEN inm.canonical_name
+                ELSE paa.institution_name
+            END AS institution,
+            COUNT(*)::bigint AS contributions,
+            COUNT(DISTINCT paa.paper_id)::bigint AS papers,
+            COALESCE(SUM(p.citations), 0)::bigint AS total_citations
+        FROM paper_author_affiliations paa
+        JOIN papers p ON p.id = paa.paper_id
+        LEFT JOIN excluded e ON e.paper_id = p.id
+        LEFT JOIN institution_name_matches inm
+          ON inm.raw_institution_name = paa.institution_name
+         AND inm.country_code = paa.country_code
+        WHERE paa.institution_name IS NOT NULL
+          AND paa.institution_name <> ''
+          AND e.paper_id IS NULL
+          AND p.subfield = :subfield
+        GROUP BY
+            CASE
+                WHEN inm.status = 'matched' AND inm.canonical_name IS NOT NULL
+                    THEN inm.canonical_name
+                ELSE paa.institution_name
+            END
+        ORDER BY COUNT(*) DESC
+        LIMIT :limit
+        """),
+        {"subfield": subfield, "limit": limit},
     )
     rows = result.fetchall()
     return {

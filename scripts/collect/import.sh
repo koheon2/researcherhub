@@ -140,8 +140,13 @@ echo "[6/6] Backfill + validation..."
   cd "${BACKEND_DIR}"
   .venv/bin/python -m scripts.backfill_paper_author_affiliations
   .venv/bin/python -m scripts.backfill_paper_facets
+  .venv/bin/python -m scripts.backfill_paper_quality_flags
+  .venv/bin/python -m scripts.backfill_institution_name_matches
+  .venv/bin/python -m scripts.refresh_publication_summaries
   .venv/bin/python -m scripts.validate_publication_affiliations
+  .venv/bin/python -m scripts.validate_institution_matches
   .venv/bin/python -m scripts.validate_paper_facets
+  .venv/bin/python -m scripts.validate_metadata_quality
 )
 
 echo ""
@@ -151,12 +156,18 @@ SELECT COUNT(*) AS total_papers FROM papers;
 SELECT COUNT(*) AS total_paper_authors FROM paper_authors;
 SELECT COUNT(*) AS total_paper_author_affiliations FROM paper_author_affiliations;
 SELECT COUNT(*) AS total_paper_facets FROM paper_facets;
+SELECT COUNT(*) AS total_paper_quality_flags FROM paper_quality_flags;
+SELECT COUNT(*) AS total_institution_name_matches FROM institution_name_matches;
 SELECT subfield, COUNT(*) AS cnt FROM papers GROUP BY subfield ORDER BY cnt DESC LIMIT 10;
 SELECT facet_type, facet_value, COUNT(*) AS cnt
 FROM paper_facets
 GROUP BY facet_type, facet_value
 ORDER BY cnt DESC
 LIMIT 10;
+SELECT status, COUNT(*) AS cnt
+FROM institution_name_matches
+GROUP BY status
+ORDER BY status;
 EOF
 
 echo ""

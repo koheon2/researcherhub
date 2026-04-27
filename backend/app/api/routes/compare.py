@@ -260,9 +260,36 @@ async def _topics(topics: list[str], db: AsyncSession) -> dict:
 
 async def _institutions(names: list[str], db: AsyncSession) -> dict:
     results = []
-    normalized_names = [
+    initial_names = [
         INSTITUTION_ALIASES.get(name.lower(), name)
         for name in names
+    ]
+    lower_initial_names = [name.lower() for name in initial_names]
+    match_rows = await db.execute(
+        text("""
+        SELECT DISTINCT ON (lower(COALESCE(canonical_name, raw_institution_name)))
+            raw_institution_name,
+            canonical_name,
+            institution_ror_id,
+            confidence
+        FROM institution_name_matches
+        WHERE status = 'matched'
+          AND (
+              lower(raw_institution_name) = ANY(:names)
+              OR lower(canonical_name) = ANY(:names)
+          )
+        ORDER BY lower(COALESCE(canonical_name, raw_institution_name)), confidence DESC
+        """),
+        {"names": lower_initial_names},
+    )
+    raw_to_canonical = {
+        row.raw_institution_name.lower(): row.canonical_name
+        for row in match_rows.fetchall()
+        if row.canonical_name
+    }
+    canonical_names = [
+        raw_to_canonical.get(name.lower(), name)
+        for name in initial_names
     ]
     stats_rows = await db.execute(
         text("""
@@ -270,18 +297,36 @@ async def _institutions(names: list[str], db: AsyncSession) -> dict:
         FROM publication_institution_stats
         WHERE institution_name = ANY(:names)
         """),
-        {"names": normalized_names},
+        {"names": canonical_names},
     )
     stats_by_name = {row.institution_name: row for row in stats_rows.fetchall()}
+    metadata_rows = await db.execute(
+        text("""
+        SELECT DISTINCT ON (canonical_name)
+            canonical_name,
+            institution_ror_id,
+            confidence
+        FROM institution_name_matches
+        WHERE status = 'matched'
+          AND canonical_name = ANY(:names)
+        ORDER BY canonical_name, confidence DESC
+        """),
+        {"names": canonical_names},
+    )
+    metadata_by_name = {
+        row.canonical_name: row for row in metadata_rows.fetchall()
+    }
     for name in names:
         kw = name.lower()
-        canonical_name = INSTITUTION_ALIASES.get(kw)
+        alias_name = INSTITUTION_ALIASES.get(kw)
+        canonical_name = raw_to_canonical.get((alias_name or name).lower(), alias_name)
         emoji = next((v for k, v in INST_EMOJIS.items() if k in kw), "🏫")
         if canonical_name:
             display_name = canonical_name
         else:
             display_name = name
         s = stats_by_name.get(display_name)
+        meta = metadata_by_name.get(display_name)
         contributions = int(s.contributions or 0) if s else 0
         total_citations = int(s.total_citations or 0) if s else 0
         avg_paper_citations = round(float(s.avg_paper_citations or 0), 1) if s else 0
@@ -297,6 +342,9 @@ async def _institutions(names: list[str], db: AsyncSession) -> dict:
                 "avg_h_index":           0,
                 "top_field":             s.top_field if s and s.top_field else "—",
             },
+            "institution_ror_id": meta.institution_ror_id if meta else None,
+            "institution_match_confidence": round(float(meta.confidence), 3) if meta else None,
+            "institution_normalized": bool(meta),
             "top_researcher": None,
         })
     return {"comparison_type": "institution", "entities": results, **QUALITY_PROVENANCE}

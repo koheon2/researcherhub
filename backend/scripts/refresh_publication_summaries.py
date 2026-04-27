@@ -82,7 +82,11 @@ WITH excluded AS (
 ),
 stats AS (
     SELECT
-        paa.institution_name,
+        CASE
+            WHEN inm.status = 'matched' AND inm.canonical_name IS NOT NULL
+                THEN inm.canonical_name
+            ELSE paa.institution_name
+        END AS institution_name,
         COUNT(*)::bigint AS contributions,
         COUNT(DISTINCT paa.paper_id)::bigint AS papers,
         COALESCE(SUM(p.citations), 0)::bigint AS total_citations,
@@ -92,10 +96,18 @@ stats AS (
     FROM paper_author_affiliations paa
     JOIN papers p ON p.id = paa.paper_id
     LEFT JOIN excluded e ON e.paper_id = p.id
+    LEFT JOIN institution_name_matches inm
+      ON inm.raw_institution_name = paa.institution_name
+     AND inm.country_code = paa.country_code
     WHERE paa.institution_name IS NOT NULL
       AND paa.institution_name <> ''
       AND e.paper_id IS NULL
-    GROUP BY paa.institution_name
+    GROUP BY
+        CASE
+            WHEN inm.status = 'matched' AND inm.canonical_name IS NOT NULL
+                THEN inm.canonical_name
+            ELSE paa.institution_name
+        END
 )
 SELECT
     stats.institution_name,
