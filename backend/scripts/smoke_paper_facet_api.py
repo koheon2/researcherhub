@@ -57,6 +57,8 @@ def main() -> int:
                 "contributions",
                 "dominant_axis",
                 "emoji",
+                "quality_filtered",
+                "quality_policy",
             ):
                 _require(key in first, f"trending entry missing {key}", failures)
 
@@ -67,6 +69,8 @@ def main() -> int:
 
         compare = _get(client, "/compare?type=topic&entities=transformer,diffusion", failures)
         if isinstance(compare, dict):
+            _require(compare.get("quality_filtered") is True, "topic compare is not quality-filtered", failures)
+            _require(compare.get("quality_policy") == "conservative_v0", "topic compare quality policy mismatch", failures)
             entities = compare.get("entities", [])
             _require(isinstance(entities, list), "topic compare entities is not a list", failures)
             if isinstance(entities, list) and entities:
@@ -83,6 +87,8 @@ def main() -> int:
 
         progress = _get(client, "/progress?type=field&entity=transformer&years=10", failures)
         if isinstance(progress, dict):
+            _require(progress.get("quality_filtered") is True, "field progress is not quality-filtered", failures)
+            _require(progress.get("quality_policy") == "conservative_v0", "field progress quality policy mismatch", failures)
             current = progress.get("current", {})
             _require("contributions" in current, "field progress current missing contributions", failures)
 

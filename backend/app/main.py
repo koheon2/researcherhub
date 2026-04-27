@@ -5,7 +5,7 @@ from app.core.config import settings
 from app.db.database import engine, Base
 from app.api.routes import researchers, benchmarks, map, search, compare, trending, leaderboard, progress
 from app.models.collaboration import Collaboration
-from app.models.paper import Paper, PaperAuthor, PaperAuthorAffiliation, PaperFacet  # noqa: F401 - ensure tables are registered
+from app.models.paper import Paper, PaperAuthor, PaperAuthorAffiliation, PaperFacet, PaperQualityFlag  # noqa: F401 - ensure tables are registered
 from app.services.scheduler import setup_scheduler, shutdown_scheduler
 
 

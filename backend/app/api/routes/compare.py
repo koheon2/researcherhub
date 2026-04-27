@@ -10,6 +10,11 @@ from app.services.paper_facets import canonicalize_facet_query, get_facet_emoji
 
 router = APIRouter(prefix="/compare", tags=["compare"])
 
+QUALITY_PROVENANCE = {
+    "quality_filtered": True,
+    "quality_policy": "conservative_v0",
+}
+
 COUNTRY_META: dict[str, tuple[str, str]] = {
     "KR": ("South Korea", "🇰🇷"), "US": ("United States", "🇺🇸"),
     "CN": ("China", "🇨🇳"),       "JP": ("Japan", "🇯🇵"),
@@ -204,7 +209,7 @@ async def _countries(codes: list[str], db: AsyncSession) -> dict:
             },
             "top_researcher": None,
         })
-    return {"comparison_type": "country", "entities": results}
+    return {"comparison_type": "country", "entities": results, **QUALITY_PROVENANCE}
 
 
 # ── Topic ─────────────────────────────────────────────────────────────────────
@@ -248,7 +253,7 @@ async def _topics(topics: list[str], db: AsyncSession) -> dict:
             "top_cluster": canonical,
             "top_researcher": None,
         })
-    return {"comparison_type": "topic", "entities": results}
+    return {"comparison_type": "topic", "entities": results, **QUALITY_PROVENANCE}
 
 
 # ── Institution ───────────────────────────────────────────────────────────────
@@ -294,7 +299,7 @@ async def _institutions(names: list[str], db: AsyncSession) -> dict:
             },
             "top_researcher": None,
         })
-    return {"comparison_type": "institution", "entities": results}
+    return {"comparison_type": "institution", "entities": results, **QUALITY_PROVENANCE}
 
 
 # ── Researcher ────────────────────────────────────────────────────────────────

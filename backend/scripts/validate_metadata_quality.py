@@ -159,6 +159,23 @@ SELECT
 FROM paper_author_affiliations TABLESAMPLE SYSTEM (:sample_percent)
 """)
 
+TABLE_EXISTS_SQL = text("SELECT to_regclass(:table_name) IS NOT NULL")
+
+QUALITY_FLAG_TOTAL_SQL = text("""
+SELECT
+    COUNT(*) AS flag_rows,
+    COUNT(DISTINCT paper_id) AS flagged_papers,
+    COUNT(DISTINCT paper_id) FILTER (WHERE severity = 'exclude') AS excluded_papers
+FROM paper_quality_flags
+""")
+
+QUALITY_FLAG_DISTRIBUTION_SQL = text("""
+SELECT severity, flag_type, source, COUNT(*) AS n
+FROM paper_quality_flags
+GROUP BY severity, flag_type, source
+ORDER BY severity, flag_type, source
+""")
+
 SUSPICIOUS_TOPIC_SQL = text("""
 SELECT
     COUNT(*) AS papers,
@@ -656,6 +673,18 @@ async def main() -> int:
                     {"sample_percent": args.coverage_sample_percent},
                 )
             ).one()._mapping
+        quality_flags_exist = bool(
+            await db.scalar(
+                TABLE_EXISTS_SQL,
+                {"table_name": "paper_quality_flags"},
+            )
+        )
+        if quality_flags_exist:
+            quality_flag_total = (await db.execute(QUALITY_FLAG_TOTAL_SQL)).one()._mapping
+            quality_flag_rows = (await db.execute(QUALITY_FLAG_DISTRIBUTION_SQL)).fetchall()
+        else:
+            quality_flag_total = None
+            quality_flag_rows = []
 
     print("Metadata quality profile")
     print(f"current_year:                   {CURRENT_YEAR}")
@@ -757,6 +786,25 @@ async def main() -> int:
         "  history topic:                "
         f"{history:,} ({pct(history, ai_cv_total)})"
     )
+
+    print("\nQuality flags")
+    if quality_flag_total is None:
+        print("  paper_quality_flags table:    not present")
+    else:
+        flag_rows_total = int(quality_flag_total["flag_rows"] or 0)
+        flagged_papers = int(quality_flag_total["flagged_papers"] or 0)
+        excluded_papers = int(quality_flag_total["excluded_papers"] or 0)
+        print(f"  flag rows:                    {flag_rows_total:,}")
+        print(f"  flagged papers:               {flagged_papers:,}")
+        print(
+            "  excluded papers:              "
+            f"{excluded_papers:,} ({pct(excluded_papers, total_papers)})"
+        )
+        for row in quality_flag_rows:
+            print(
+                "  "
+                f"{row.severity} / {row.flag_type} / {row.source}: {int(row.n):,}"
+            )
 
     if future_year > 0:
         warnings.append("future-year papers exist")

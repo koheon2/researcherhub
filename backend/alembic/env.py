@@ -16,7 +16,7 @@ if str(ROOT) not in sys.path:
 from app.core.config import settings  # noqa: E402
 from app.db.database import Base  # noqa: E402
 from app.models.collaboration import Collaboration  # noqa: F401,E402
-from app.models.paper import Paper, PaperAuthor, PaperAuthorAffiliation  # noqa: F401,E402
+from app.models.paper import Paper, PaperAuthor, PaperAuthorAffiliation, PaperFacet, PaperQualityFlag  # noqa: F401,E402
 from app.models.researcher import Researcher  # noqa: F401,E402
 
 config = context.config

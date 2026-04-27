@@ -2,13 +2,16 @@
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import distinct, select, func, text
+from sqlalchemy import text
 from app.db.database import get_db
-from app.models.paper import Paper, PaperAuthorAffiliation, PaperFacet
-from app.models.researcher import Researcher
 from app.services.paper_facets import canonicalize_facet_query
 
 router = APIRouter(prefix="/progress", tags=["progress"])
+
+QUALITY_PROVENANCE = {
+    "quality_filtered": True,
+    "quality_policy": "conservative_v0",
+}
 
 
 @router.get("")
@@ -26,43 +29,51 @@ async def get_progress(
 
 
 async def _country_progress(db: AsyncSession, entity: str, years: int) -> dict:
-    max_year = await db.scalar(
-        select(func.max(PaperAuthorAffiliation.publication_year))
-        .where(PaperAuthorAffiliation.country_code == entity)
+    result = await db.execute(
+        text("""
+        WITH bounds AS (
+            SELECT MAX(year) AS max_year
+            FROM publication_country_year_stats
+            WHERE country_code = :entity
+        )
+        SELECT
+            pcys.year,
+            pcys.contributions,
+            pcys.avg_paper_citations AS avg_citations,
+            bounds.max_year AS max_year
+        FROM publication_country_year_stats pcys
+        JOIN bounds ON true
+        WHERE pcys.country_code = :entity
+          AND bounds.max_year IS NOT NULL
+          AND pcys.year >= bounds.max_year - :years + 1
+          AND pcys.year <= bounds.max_year
+        ORDER BY pcys.year
+        """),
+        {"entity": entity, "years": years},
     )
-    if max_year is None:
+    rows = result.fetchall()
+    if not rows:
         return {
             "type": "country",
             "entity": entity,
             "trend": [],
             "current": {"researcher_count": 0, "avg_citations": 0, "contributions": 0},
+            **QUALITY_PROVENANCE,
         }
 
-    start_year = int(max_year) - years + 1
-    result = await db.execute(
-        select(
-            PaperAuthorAffiliation.publication_year.label("year"),
-            func.count(PaperAuthorAffiliation.id).label("contributions"),
-            func.coalesce(func.avg(Paper.citations), 0).label("avg_cit"),
-        )
-        .join(Paper, Paper.id == PaperAuthorAffiliation.paper_id)
-        .where(PaperAuthorAffiliation.country_code == entity)
-        .where(PaperAuthorAffiliation.publication_year >= start_year)
-        .where(PaperAuthorAffiliation.publication_year <= max_year)
-        .group_by(PaperAuthorAffiliation.publication_year)
-        .order_by(PaperAuthorAffiliation.publication_year)
-    )
+    max_year = int(rows[0].max_year)
+    start_year = max_year - years + 1
     by_year = {
         int(r.year): {
             "researcher_count": int(r.contributions or 0),
             "contributions": int(r.contributions or 0),
-            "avg_citations": round(float(r.avg_cit or 0), 1),
+            "avg_citations": round(float(r.avg_citations or 0), 1),
         }
-        for r in result.fetchall()
+        for r in rows
     }
 
     trend = []
-    for year in range(start_year, int(max_year) + 1):
+    for year in range(start_year, max_year + 1):
         row = by_year.get(year, {"researcher_count": 0, "contributions": 0, "avg_citations": 0})
         trend.append({"year": year, **row})
 
@@ -79,6 +90,7 @@ async def _country_progress(db: AsyncSession, entity: str, years: int) -> dict:
             "contributions": total_contributions,
             "avg_citations": avg_citations,
         },
+        **QUALITY_PROVENANCE,
     }
 
 
@@ -100,6 +112,7 @@ async def _field_progress(db: AsyncSession, entity: str, years: int) -> dict:
             "entity": entity,
             "trend": [],
             "current": {"researcher_count": 0, "contributions": 0, "avg_citations": 0},
+            **QUALITY_PROVENANCE,
         }
 
     start_year = int(max_year) - years + 1
@@ -152,4 +165,5 @@ async def _field_progress(db: AsyncSession, entity: str, years: int) -> dict:
             "contributions": total_contributions,
             "avg_citations": avg_citations,
         },
+        **QUALITY_PROVENANCE,
     }

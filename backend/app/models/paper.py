@@ -38,6 +38,9 @@ class Paper(Base):
     facets = relationship(
         "PaperFacet", back_populates="paper", cascade="all, delete-orphan"
     )
+    quality_flags = relationship(
+        "PaperQualityFlag", back_populates="paper", cascade="all, delete-orphan"
+    )
 
 
 class PaperAuthor(Base):
@@ -124,4 +127,34 @@ class PaperFacet(Base):
         Index("ix_pf_type_value", "facet_type", "facet_value"),
         Index("ix_pf_paper_id", "paper_id"),
         Index("ix_pf_type_source", "facet_type", "source"),
+    )
+
+
+class PaperQualityFlag(Base):
+    __tablename__ = "paper_quality_flags"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    paper_id = Column(
+        String(20),
+        ForeignKey("papers.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    flag_type = Column(String(64), nullable=False)
+    severity = Column(String(16), nullable=False)
+    reason = Column(Text, nullable=False)
+    source = Column(String(64), nullable=False)
+    observed_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    paper = relationship("Paper", back_populates="quality_flags")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "paper_id",
+            "flag_type",
+            "source",
+            name="uq_paper_quality_flags_identity",
+        ),
+        Index("ix_pqf_severity", "severity"),
+        Index("ix_pqf_flag_type", "flag_type"),
+        Index("ix_pqf_paper_id", "paper_id"),
     )

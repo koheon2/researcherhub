@@ -54,6 +54,12 @@ def _check_compare(
         f"{expected_type} compare has wrong comparison_type",
         failures,
     )
+    _require(data.get("quality_filtered") is True, f"{expected_type} compare is not quality-filtered", failures)
+    _require(
+        data.get("quality_policy") == "conservative_v0",
+        f"{expected_type} compare quality policy mismatch",
+        failures,
+    )
     entities = data.get("entities")
     _require(
         isinstance(entities, list) and len(entities) > 0,
@@ -93,6 +99,8 @@ def _check_progress(data: dict[str, Any] | None, failures: list[str]) -> None:
 
     _require(data.get("type") == "country", "country progress has wrong type", failures)
     _require(data.get("entity") == "KR", "country progress has wrong entity", failures)
+    _require(data.get("quality_filtered") is True, "country progress is not quality-filtered", failures)
+    _require(data.get("quality_policy") == "conservative_v0", "country progress quality policy mismatch", failures)
     trend = data.get("trend")
     current = data.get("current")
     _require(isinstance(trend, list), "country progress trend is not a list", failures)
@@ -112,6 +120,8 @@ def _check_leaderboard(data: dict[str, Any] | None, failures: list[str]) -> None
         return
 
     _require(data.get("type") == "country", "country leaderboard has wrong type", failures)
+    _require(data.get("quality_filtered") is True, "country leaderboard is not quality-filtered", failures)
+    _require(data.get("quality_policy") == "conservative_v0", "country leaderboard quality policy mismatch", failures)
     entries = data.get("entries")
     _require(isinstance(entries, list), "country leaderboard entries is not a list", failures)
     if not isinstance(entries, list) or not entries:

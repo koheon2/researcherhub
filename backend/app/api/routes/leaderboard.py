@@ -2,12 +2,17 @@
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import distinct, select, func, text
+from sqlalchemy import distinct, exists, select, func, text
 from app.db.database import get_db
-from app.models.paper import Paper, PaperAuthorAffiliation
+from app.models.paper import Paper, PaperAuthorAffiliation, PaperQualityFlag
 from app.models.researcher import Researcher
 
 router = APIRouter(prefix="/leaderboard", tags=["leaderboard"])
+
+QUALITY_PROVENANCE = {
+    "quality_filtered": True,
+    "quality_policy": "conservative_v0",
+}
 
 FIELD_TO_SUBFIELD: dict[str, str] = {
     "AI": "Artificial Intelligence",
@@ -75,6 +80,7 @@ async def _country_leaderboard(db: AsyncSession, field: str | None, limit: int):
                 }
                 for i, r in enumerate(rows)
             ],
+            **QUALITY_PROVENANCE,
         }
 
     base = select(
@@ -88,6 +94,12 @@ async def _country_leaderboard(db: AsyncSession, field: str | None, limit: int):
 
     if subfield:
         base = base.where(Paper.subfield == subfield)
+
+    base = base.where(
+        ~exists()
+        .where(PaperQualityFlag.paper_id == Paper.id)
+        .where(PaperQualityFlag.severity == "exclude")
+    )
 
     result = await db.execute(
         base.group_by(PaperAuthorAffiliation.country_code)
@@ -111,6 +123,7 @@ async def _country_leaderboard(db: AsyncSession, field: str | None, limit: int):
             }
             for i, r in enumerate(rows)
         ],
+        **QUALITY_PROVENANCE,
     }
 
 
@@ -143,6 +156,7 @@ async def _institution_leaderboard(db: AsyncSession, field: str | None, limit: i
                 }
                 for i, r in enumerate(rows)
             ],
+            **QUALITY_PROVENANCE,
         }
 
     base = select(
@@ -156,6 +170,12 @@ async def _institution_leaderboard(db: AsyncSession, field: str | None, limit: i
 
     if subfield:
         base = base.where(Paper.subfield == subfield)
+
+    base = base.where(
+        ~exists()
+        .where(PaperQualityFlag.paper_id == Paper.id)
+        .where(PaperQualityFlag.severity == "exclude")
+    )
 
     result = await db.execute(
         base.group_by(PaperAuthorAffiliation.institution_name)
@@ -179,6 +199,7 @@ async def _institution_leaderboard(db: AsyncSession, field: str | None, limit: i
             }
             for i, r in enumerate(rows)
         ],
+        **QUALITY_PROVENANCE,
     }
 
 

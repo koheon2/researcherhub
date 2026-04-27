@@ -8,6 +8,11 @@ from app.services.paper_facets import get_facet_emoji, slugify_facet
 
 router = APIRouter(prefix="/trending", tags=["trending"])
 
+QUALITY_PROVENANCE = {
+    "quality_filtered": True,
+    "quality_policy": "conservative_v0",
+}
+
 
 @router.get("")
 async def get_trending(
@@ -47,6 +52,7 @@ async def get_trending(
             "dominant_axis": axis,
             "growth_pct": round(float(row.growth_pct or 0), 1),
             "emoji": get_facet_emoji(row.facet_value),
+            **QUALITY_PROVENANCE,
         }
         for idx, row in enumerate(rows)
     ]
