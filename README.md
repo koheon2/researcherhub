@@ -174,9 +174,21 @@ Backend smoke:
 cd backend
 .venv/bin/python -m scripts.validate_publication_affiliations
 .venv/bin/python -m scripts.validate_paper_facets
+.venv/bin/python -m scripts.validate_metadata_quality
 .venv/bin/python -m scripts.smoke_publication_affiliation_api --base-url http://127.0.0.1:8000/api
 .venv/bin/python -m scripts.smoke_paper_facet_api --base-url http://127.0.0.1:8000/api
 ```
+
+Metadata quality audit:
+
+```bash
+cd backend
+.venv/bin/python -m scripts.validate_metadata_quality
+.venv/bin/python -m scripts.validate_metadata_quality --deep
+.venv/bin/python -m scripts.validate_metadata_quality --external-sample 50 --csv /tmp/metadata-audit.csv
+```
+
+기본 실행은 빠른 반복 확인을 위해 추정치와 `TABLESAMPLE`을 사용합니다. 정확한 전체 scan이 필요하면 `--deep`을 사용하고, DOI 외부 대조가 필요하면 `--external-sample`을 지정합니다.
 
 Frontend build:
 
