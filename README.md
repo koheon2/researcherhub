@@ -65,6 +65,12 @@ ResearcherHub는 AI/CS 연구 논문과 연구자 정보를 기반으로 국가,
 
 `paper_facets`는 논문 title + abstract를 기반으로 aboutness/method/task/application 축을 저장합니다. 현재는 rule/keyword 기반 weak label이며, LLM/embedding 기반 taxonomy는 다음 단계입니다.
 
+## Data Quality
+
+현재 데이터는 OpenAlex 기반 원천 저장소 성격이 강하며, dataset/repository record, 고문헌, future-year metadata, topic mismatch가 일부 섞여 있습니다. 제품 지표에는 원본을 직접 쓰기보다 quality-filtered layer가 필요합니다.
+
+1차 조사 결과와 판단 기준은 [Data Quality Audit](docs/data-quality-audit.md)에 정리했습니다.
+
 ## 로컬 실행
 
 ### 1. Frontend 설치
