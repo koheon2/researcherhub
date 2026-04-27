@@ -132,9 +132,31 @@ async def _institution_leaderboard(db: AsyncSession, field: str | None, limit: i
     if not subfield:
         result = await db.execute(
             text("""
-            SELECT institution_name AS institution, contributions, papers, total_citations
-            FROM publication_institution_stats
-            ORDER BY contributions DESC
+            WITH metadata AS (
+                SELECT
+                    canonical_name,
+                    MAX(institution_ror_id) FILTER (
+                        WHERE institution_ror_id IS NOT NULL
+                          AND institution_ror_id <> ''
+                    ) AS institution_ror_id,
+                    MAX(confidence) AS institution_match_confidence
+                FROM institution_name_matches
+                WHERE status = 'matched'
+                  AND canonical_name IS NOT NULL
+                  AND canonical_name <> ''
+                GROUP BY canonical_name
+            )
+            SELECT
+                stats.institution_name AS institution,
+                stats.contributions,
+                stats.papers,
+                stats.total_citations,
+                metadata.institution_ror_id,
+                metadata.institution_match_confidence,
+                (metadata.canonical_name IS NOT NULL) AS institution_normalized
+            FROM publication_institution_stats stats
+            LEFT JOIN metadata ON metadata.canonical_name = stats.institution_name
+            ORDER BY stats.contributions DESC
             LIMIT :limit
             """),
             {"limit": limit},
@@ -153,6 +175,10 @@ async def _institution_leaderboard(db: AsyncSession, field: str | None, limit: i
                     "papers": r.papers,
                     "total_citations": int(r.total_citations or 0),
                     "avg_h_index": 0,
+                    "institution_ror_id": r.institution_ror_id,
+                    "institution_match_confidence": round(float(r.institution_match_confidence), 3)
+                    if r.institution_match_confidence is not None else None,
+                    "institution_normalized": bool(r.institution_normalized),
                 }
                 for i, r in enumerate(rows)
             ],
@@ -161,37 +187,17 @@ async def _institution_leaderboard(db: AsyncSession, field: str | None, limit: i
 
     result = await db.execute(
         text("""
-        WITH excluded AS (
-            SELECT DISTINCT paper_id
-            FROM paper_quality_flags
-            WHERE severity = 'exclude'
-        )
         SELECT
-            CASE
-                WHEN inm.status = 'matched' AND inm.canonical_name IS NOT NULL
-                    THEN inm.canonical_name
-                ELSE paa.institution_name
-            END AS institution,
-            COUNT(*)::bigint AS contributions,
-            COUNT(DISTINCT paa.paper_id)::bigint AS papers,
-            COALESCE(SUM(p.citations), 0)::bigint AS total_citations
-        FROM paper_author_affiliations paa
-        JOIN papers p ON p.id = paa.paper_id
-        LEFT JOIN excluded e ON e.paper_id = p.id
-        LEFT JOIN institution_name_matches inm
-          ON inm.raw_institution_name = paa.institution_name
-         AND inm.country_code = paa.country_code
-        WHERE paa.institution_name IS NOT NULL
-          AND paa.institution_name <> ''
-          AND e.paper_id IS NULL
-          AND p.subfield = :subfield
-        GROUP BY
-            CASE
-                WHEN inm.status = 'matched' AND inm.canonical_name IS NOT NULL
-                    THEN inm.canonical_name
-                ELSE paa.institution_name
-            END
-        ORDER BY COUNT(*) DESC
+            institution_name AS institution,
+            contributions,
+            papers,
+            total_citations,
+            institution_ror_id,
+            institution_match_confidence,
+            institution_normalized
+        FROM publication_institution_field_stats
+        WHERE subfield = :subfield
+        ORDER BY contributions DESC
         LIMIT :limit
         """),
         {"subfield": subfield, "limit": limit},
@@ -210,6 +216,10 @@ async def _institution_leaderboard(db: AsyncSession, field: str | None, limit: i
                 "papers": r.papers,
                 "total_citations": int(r.total_citations or 0),
                 "avg_h_index": 0,
+                "institution_ror_id": r.institution_ror_id,
+                "institution_match_confidence": round(float(r.institution_match_confidence), 3)
+                if r.institution_match_confidence is not None else None,
+                "institution_normalized": bool(r.institution_normalized),
             }
             for i, r in enumerate(rows)
         ],

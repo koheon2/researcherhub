@@ -185,3 +185,29 @@ class PaperQualityFlag(Base):
         Index("ix_pqf_flag_type", "flag_type"),
         Index("ix_pqf_paper_id", "paper_id"),
     )
+
+
+class PublicationInstitutionFieldStat(Base):
+    __tablename__ = "publication_institution_field_stats"
+
+    institution_name = Column(String(300), primary_key=True)
+    subfield = Column(String(100), primary_key=True)
+    institution_ror_id = Column(String(100))
+    institution_match_confidence = Column(Float)
+    institution_normalized = Column(Boolean, nullable=False, default=False)
+    contributions = Column(BigInteger, nullable=False, default=0)
+    papers = Column(BigInteger, nullable=False, default=0)
+    total_citations = Column(BigInteger, nullable=False, default=0)
+    avg_paper_citations = Column(Float, nullable=False, default=0)
+    min_year = Column(Integer)
+    max_year = Column(Integer)
+    refreshed_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        Index(
+            "ix_pifs_subfield_contributions",
+            "subfield",
+            "contributions",
+        ),
+        Index("ix_pifs_institution_ror_id", "institution_ror_id"),
+    )

@@ -122,6 +122,74 @@ SELECT
 FROM stats
 """)
 
+INSTITUTION_FIELD_SQL = text("""
+INSERT INTO publication_institution_field_stats (
+    institution_name,
+    subfield,
+    institution_ror_id,
+    institution_match_confidence,
+    institution_normalized,
+    contributions,
+    papers,
+    total_citations,
+    avg_paper_citations,
+    min_year,
+    max_year,
+    refreshed_at
+)
+WITH excluded AS (
+    SELECT DISTINCT paper_id
+    FROM paper_quality_flags
+    WHERE severity = 'exclude'
+),
+normalized AS (
+    SELECT
+        CASE
+            WHEN inm.status = 'matched' AND inm.canonical_name IS NOT NULL
+                THEN inm.canonical_name
+            ELSE paa.institution_name
+        END AS institution_name,
+        p.subfield,
+        inm.institution_ror_id,
+        inm.confidence,
+        (inm.status = 'matched' AND inm.canonical_name IS NOT NULL) AS institution_normalized,
+        paa.id AS affiliation_id,
+        paa.paper_id,
+        p.citations,
+        paa.publication_year
+    FROM paper_author_affiliations paa
+    JOIN papers p ON p.id = paa.paper_id
+    LEFT JOIN excluded e ON e.paper_id = p.id
+    LEFT JOIN institution_name_matches inm
+      ON inm.raw_institution_name = paa.institution_name
+     AND inm.country_code = paa.country_code
+    WHERE paa.institution_name IS NOT NULL
+      AND paa.institution_name <> ''
+      AND p.subfield IS NOT NULL
+      AND p.subfield <> ''
+      AND e.paper_id IS NULL
+)
+SELECT
+    institution_name,
+    subfield,
+    MAX(institution_ror_id) FILTER (
+        WHERE institution_normalized
+          AND institution_ror_id IS NOT NULL
+          AND institution_ror_id <> ''
+    ) AS institution_ror_id,
+    MAX(confidence) FILTER (WHERE institution_normalized) AS institution_match_confidence,
+    BOOL_OR(institution_normalized) AS institution_normalized,
+    COUNT(affiliation_id)::bigint AS contributions,
+    COUNT(DISTINCT paper_id)::bigint AS papers,
+    COALESCE(SUM(citations), 0)::bigint AS total_citations,
+    COALESCE(AVG(citations), 0)::float AS avg_paper_citations,
+    MIN(publication_year) AS min_year,
+    MAX(publication_year) AS max_year,
+    now()
+FROM normalized
+GROUP BY institution_name, subfield
+""")
+
 COUNTRY_YEAR_SQL = text("""
 INSERT INTO publication_country_year_stats (
     country_code,
@@ -253,6 +321,8 @@ SELECT 'publication_country_stats' AS table_name, COUNT(*) FROM publication_coun
 UNION ALL
 SELECT 'publication_institution_stats' AS table_name, COUNT(*) FROM publication_institution_stats
 UNION ALL
+SELECT 'publication_institution_field_stats' AS table_name, COUNT(*) FROM publication_institution_field_stats
+UNION ALL
 SELECT 'publication_country_year_stats' AS table_name, COUNT(*) FROM publication_country_year_stats
 UNION ALL
 SELECT 'paper_facet_summary' AS table_name, COUNT(*) FROM paper_facet_summary
@@ -275,6 +345,7 @@ TRUNCATE_SQL = {
     "publication_country_stats": text("TRUNCATE publication_country_stats"),
     "publication_country_year_stats": text("TRUNCATE publication_country_year_stats"),
     "publication_institution_stats": text("TRUNCATE publication_institution_stats"),
+    "publication_institution_field_stats": text("TRUNCATE publication_institution_field_stats"),
     "paper_facet_summary": text("TRUNCATE paper_facet_summary"),
     "paper_facet_year_summary": text("TRUNCATE paper_facet_year_summary"),
 }
@@ -301,6 +372,11 @@ async def main() -> None:
         print("refreshing publication_institution_stats...", flush=True)
         await db.execute(TRUNCATE_SQL["publication_institution_stats"])
         await db.execute(INSTITUTION_SQL)
+        await db.commit()
+
+        print("refreshing publication_institution_field_stats...", flush=True)
+        await db.execute(TRUNCATE_SQL["publication_institution_field_stats"])
+        await db.execute(INSTITUTION_FIELD_SQL)
         await db.commit()
 
         print("refreshing publication_country_year_stats...", flush=True)

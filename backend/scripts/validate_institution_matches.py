@@ -97,6 +97,27 @@ SELECT COUNT(*) FROM (
 ) duplicates
 """)
 
+FIELD_SUMMARY_SQL = text("""
+SELECT
+    COUNT(*)::bigint AS rows,
+    COUNT(DISTINCT institution_name)::bigint AS institutions,
+    COUNT(DISTINCT subfield)::bigint AS subfields,
+    COALESCE(SUM(contributions), 0)::bigint AS contributions
+FROM publication_institution_field_stats
+""")
+
+FIELD_SMOKE_SQL = text("""
+SELECT subfield, institution_name, contributions, papers, institution_ror_id
+FROM publication_institution_field_stats
+WHERE subfield IN (
+    'Artificial Intelligence',
+    'Computer Vision and Pattern Recognition',
+    'Machine Learning'
+)
+ORDER BY subfield, contributions DESC
+LIMIT 15
+""")
+
 
 def pct(part: int, total: int) -> str:
     if total == 0:
@@ -111,6 +132,8 @@ async def main() -> int:
         top_unmatched = (await db.execute(TOP_UNMATCHED_SQL)).fetchall()
         smoke = (await db.execute(SMOKE_SQL)).fetchall()
         duplicate_count = int(await db.scalar(DUPLICATE_SQL) or 0)
+        field_summary = (await db.execute(FIELD_SUMMARY_SQL)).one()._mapping
+        field_smoke = (await db.execute(FIELD_SMOKE_SQL)).fetchall()
 
     distinct_pairs = int(summary["distinct_pairs"] or 0)
     affiliation_rows = int(summary["affiliation_rows"] or 0)
@@ -118,6 +141,7 @@ async def main() -> int:
     matched_rows = int(summary["matched_rows"] or 0)
     ror_pairs = int(summary["ror_pairs"] or 0)
     ror_rows = int(summary["ror_rows"] or 0)
+    field_summary_rows = int(field_summary["rows"] or 0)
 
     print("Institution match validation")
     print(f"distinct institution/country pairs: {distinct_pairs:,}")
@@ -127,6 +151,10 @@ async def main() -> int:
     print(f"pairs with ROR:                     {ror_pairs:,} ({pct(ror_pairs, distinct_pairs)})")
     print(f"affiliation rows with ROR match:    {ror_rows:,} ({pct(ror_rows, affiliation_rows)})")
     print(f"duplicate match keys:               {duplicate_count:,}")
+    print(f"institution-field summary rows:     {field_summary_rows:,}")
+    print(f"institution-field institutions:     {int(field_summary['institutions'] or 0):,}")
+    print(f"institution-field subfields:        {int(field_summary['subfields'] or 0):,}")
+    print(f"institution-field contributions:    {int(field_summary['contributions'] or 0):,}")
 
     print("\nMatch distribution")
     for row in distribution:
@@ -151,6 +179,17 @@ async def main() -> int:
             f"{int(row.contributions):,} ({row.status})"
         )
 
+    print("\nInstitution-field smoke")
+    if not field_smoke:
+        print("  none")
+    for row in field_smoke:
+        print(
+            "  "
+            f"{row.subfield}: {row.institution_name} "
+            f"contributions={int(row.contributions):,}, "
+            f"papers={int(row.papers):,}, ror={row.institution_ror_id or '-'}"
+        )
+
     failures: list[str] = []
     if duplicate_count:
         failures.append("duplicate institution match keys exist")
@@ -158,6 +197,8 @@ async def main() -> int:
         failures.append("no affiliation rows matched")
     if ror_rows <= 0:
         failures.append("no affiliation rows have ROR matches")
+    if field_summary_rows <= 0:
+        failures.append("institution-field summary is empty")
 
     if failures:
         print("\nInstitution match validation failed")

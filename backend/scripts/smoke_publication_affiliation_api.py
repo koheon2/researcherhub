@@ -122,15 +122,23 @@ def _check_progress(data: dict[str, Any] | None, failures: list[str]) -> None:
             _require(key in trend[0], f"country progress trend row missing {key}", failures)
 
 
-def _check_leaderboard(data: dict[str, Any] | None, failures: list[str]) -> None:
+def _check_leaderboard(
+    data: dict[str, Any] | None,
+    expected_type: str,
+    failures: list[str],
+) -> None:
     if data is None:
         return
 
-    _require(data.get("type") == "country", "country leaderboard has wrong type", failures)
-    _require(data.get("quality_filtered") is True, "country leaderboard is not quality-filtered", failures)
-    _require(data.get("quality_policy") == "conservative_v0", "country leaderboard quality policy mismatch", failures)
+    _require(data.get("type") == expected_type, f"{expected_type} leaderboard has wrong type", failures)
+    _require(data.get("quality_filtered") is True, f"{expected_type} leaderboard is not quality-filtered", failures)
+    _require(
+        data.get("quality_policy") == "conservative_v0",
+        f"{expected_type} leaderboard quality policy mismatch",
+        failures,
+    )
     entries = data.get("entries")
-    _require(isinstance(entries, list), "country leaderboard entries is not a list", failures)
+    _require(isinstance(entries, list), f"{expected_type} leaderboard entries is not a list", failures)
     if not isinstance(entries, list) or not entries:
         return
 
@@ -145,7 +153,15 @@ def _check_leaderboard(data: dict[str, Any] | None, failures: list[str]) -> None
         "total_citations",
         "avg_h_index",
     ):
-        _require(key in first, f"country leaderboard entry missing {key}", failures)
+        _require(key in first, f"{expected_type} leaderboard entry missing {key}", failures)
+
+    if expected_type == "institution":
+        for key in (
+            "institution_ror_id",
+            "institution_match_confidence",
+            "institution_normalized",
+        ):
+            _require(key in first, f"institution leaderboard entry missing {key}", failures)
 
 
 def main() -> int:
@@ -173,6 +189,21 @@ def main() -> int:
         )
         _check_leaderboard(
             _get(client, "/leaderboard?type=country&limit=20", failures),
+            "country",
+            failures,
+        )
+        _check_leaderboard(
+            _get(client, "/leaderboard?type=institution&field=AI&limit=20", failures),
+            "institution",
+            failures,
+        )
+        _check_leaderboard(
+            _get(
+                client,
+                "/leaderboard?type=institution&field=Computer%20Vision&limit=20",
+                failures,
+            ),
+            "institution",
             failures,
         )
 

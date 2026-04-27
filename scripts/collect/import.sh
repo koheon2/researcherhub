@@ -158,6 +158,7 @@ SELECT COUNT(*) AS total_paper_author_affiliations FROM paper_author_affiliation
 SELECT COUNT(*) AS total_paper_facets FROM paper_facets;
 SELECT COUNT(*) AS total_paper_quality_flags FROM paper_quality_flags;
 SELECT COUNT(*) AS total_institution_name_matches FROM institution_name_matches;
+SELECT COUNT(*) AS total_publication_institution_field_stats FROM publication_institution_field_stats;
 SELECT subfield, COUNT(*) AS cnt FROM papers GROUP BY subfield ORDER BY cnt DESC LIMIT 10;
 SELECT facet_type, facet_value, COUNT(*) AS cnt
 FROM paper_facets
