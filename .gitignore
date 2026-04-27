@@ -37,6 +37,14 @@ backend/.env.*
 scripts/collect/data/
 scripts/collect/*.pem
 
+# Database handoff artifacts
+*.dump
+*.dump.sha256
+*.sql
+*.sql.gz
+exports/
+db-dumps/
+
 # Local runtime / generated files
 .playwright-cli/
 __pycache__/

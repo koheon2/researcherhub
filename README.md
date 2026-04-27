@@ -71,6 +71,88 @@ ResearcherHub는 AI/CS 연구 논문과 연구자 정보를 기반으로 국가,
 
 1차 조사 결과와 판단 기준은 [Data Quality Audit](docs/data-quality-audit.md)에 정리했습니다.
 
+## Full DB Dump로 시작하기
+
+전체 데이터를 바로 재현하려면 GitHub repo와 별도로 전달되는 PostgreSQL custom-format dump를 복구합니다. DB dump는 Git에 포함하지 않는 artifact입니다.
+
+현재 handoff dump:
+
+| 항목 | 값 |
+| --- | --- |
+| 파일명 | `researcherhub_codex_full_20260427.dump` |
+| checksum 파일 | `researcherhub_codex_full_20260427.dump.sha256` |
+| SHA256 | `ef81e3b4eadc0607f353ff271d6e3113505e9796a688239356625c16337d3f44` |
+| 크기 | 약 `8.1GB` |
+| 원본 DB | `researcherhub_codex` |
+| 권장 PostgreSQL | 16 |
+| 권장 여유 디스크 | 최소 100GB |
+
+복구 전 준비:
+
+- PostgreSQL 서버가 실행 중이어야 합니다.
+- `createdb`, `pg_restore`, `psql` 명령이 PATH에 있어야 합니다.
+- `backend/.env`에 들어갈 API key는 별도로 전달받아야 합니다.
+
+dump 파일을 받은 뒤 checksum을 확인합니다.
+
+```bash
+shasum -a 256 -c researcherhub_codex_full_20260427.dump.sha256
+```
+
+archive가 정상적으로 읽히는지도 확인합니다.
+
+```bash
+pg_restore --list researcherhub_codex_full_20260427.dump | head
+```
+
+기존에 같은 이름의 DB가 없다면 새 DB를 만들고 복구합니다.
+
+```bash
+createdb researcherhub_codex
+pg_restore --no-owner --no-acl --jobs 4 -d researcherhub_codex researcherhub_codex_full_20260427.dump
+```
+
+이미 같은 이름의 DB가 있으면 덮어쓰기 전에 반드시 백업하거나 다른 DB명을 사용하세요. 예를 들어:
+
+```bash
+createdb researcherhub_codex_local
+pg_restore --no-owner --no-acl --jobs 4 -d researcherhub_codex_local researcherhub_codex_full_20260427.dump
+```
+
+복구한 DB명에 맞춰 `backend/.env`를 설정합니다.
+
+```env
+DATABASE_URL=postgresql+asyncpg://<your-postgres-user>@localhost:5432/researcherhub_codex
+OPENALEX_EMAIL=your@email.com
+CORS_ORIGINS=["http://localhost:5173","http://127.0.0.1:5173"]
+OPENAI_API_KEY=your-openai-api-key
+```
+
+풀 덤프에는 schema, data, index, Alembic version이 포함되어 있습니다. 따라서 풀 덤프 복구 경로에서는 migration을 새로 적용하는 것이 아니라 현재 revision을 확인하는 용도로 실행합니다.
+
+```bash
+cd backend
+.venv/bin/alembic -c alembic.ini current
+```
+
+복구 후 sanity check:
+
+```bash
+cd backend
+.venv/bin/python -m scripts.validate_metadata_quality
+.venv/bin/python -m scripts.validate_publication_affiliations
+.venv/bin/python -m scripts.validate_paper_facets
+.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+curl http://127.0.0.1:8000/health
+```
+
+프론트까지 확인하려면 별도 터미널에서 실행합니다.
+
+```bash
+npm install
+npm run dev
+```
+
 ## 로컬 실행
 
 ### 1. Frontend 설치
@@ -114,6 +196,8 @@ OPENAI_API_KEY=your-openai-api-key
 cd backend
 .venv/bin/alembic -c alembic.ini upgrade head
 ```
+
+이 명령은 빈 DB에서 새로 시작하거나 CSV import/backfill 파이프라인을 돌릴 때 사용합니다. 위의 full DB dump를 복구한 경우에는 schema/data/Alembic version이 이미 포함되어 있으므로 `upgrade head` 대신 `alembic current`로 상태만 확인합니다.
 
 ### 5. Backend 실행
 
@@ -216,6 +300,12 @@ GET /api/search/universal?q=Transformer%20vs%20Diffusion
 - `backend/.env`
 - `scripts/collect/*.pem`
 - `scripts/collect/data/`
+- `*.dump`
+- `*.dump.sha256`
+- `*.sql`
+- `*.sql.gz`
+- `exports/`
+- `db-dumps/`
 - `backend/.venv/`
 - `node_modules/`
 - `dist/`
