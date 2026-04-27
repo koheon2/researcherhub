@@ -1,0 +1,59 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+*.pem
+*.key
+
+# Paper collection data
+scripts/collect/data/
+scripts/collect/*.pem
+
+# Local runtime / generated files
+.playwright-cli/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+backend/.venv/
+backend/pipeline_state.json
+backend/snapshot_state.json
+backend/institution_coords_cache.json
+LOCAL_AGENT_CONTEXT.md
+
+# Large local data artifacts. Keep lightweight seed/config files tracked.
+backend/data/*
+!backend/data/paper_facet_seeds.json
+!backend/data/topic_names.json
+!backend/data/.gitkeep

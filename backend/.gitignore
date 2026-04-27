@@ -1,0 +1,15 @@
+
+# Secrets and local runtime artifacts
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.py[cod]
+pipeline_state.json
+snapshot_state.json
+institution_coords_cache.json
+data/*
+!data/paper_facet_seeds.json
+!data/topic_names.json
+!data/.gitkeep

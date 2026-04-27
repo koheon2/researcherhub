@@ -1,0 +1,210 @@
+{
+  "aboutness": [
+    {
+      "value": "Artificial Intelligence",
+      "aliases": ["artificial intelligence", "ai", "machine learning", "deep learning"]
+    },
+    {
+      "value": "Natural Language Processing",
+      "aliases": ["natural language processing", "nlp", "computational linguistics"]
+    },
+    {
+      "value": "Computer Vision",
+      "aliases": ["computer vision", "vision", "image understanding", "visual recognition"]
+    },
+    {
+      "value": "Multimodal Learning",
+      "aliases": ["multimodal", "multi modal", "vision language", "vision-language", "cross modal", "cross-modal"]
+    },
+    {
+      "value": "Reinforcement Learning",
+      "aliases": ["reinforcement learning", "rl"]
+    },
+    {
+      "value": "Graph Learning",
+      "aliases": ["graph learning", "graph representation learning"]
+    },
+    {
+      "value": "Speech Processing",
+      "aliases": ["speech processing", "speech recognition", "automatic speech recognition", "asr"]
+    },
+    {
+      "value": "Robotics",
+      "aliases": ["robotics", "robot learning"]
+    },
+    {
+      "value": "Medical AI",
+      "aliases": ["medical ai", "clinical ai", "healthcare ai"]
+    },
+    {
+      "value": "Recommendation Systems",
+      "aliases": ["recommendation systems", "recommender systems", "recommender system", "recsys"]
+    }
+  ],
+  "method": [
+    {
+      "value": "Transformer",
+      "aliases": ["transformer", "transformers", "self attention", "self-attention", "attention mechanism"]
+    },
+    {
+      "value": "Large Language Model",
+      "aliases": ["large language model", "large language models", "llm", "llms", "language model", "language models", "foundation model", "foundation models"]
+    },
+    {
+      "value": "Diffusion",
+      "aliases": ["diffusion model", "diffusion models", "denoising diffusion", "score based generative model", "score-based generative model", "latent diffusion"]
+    },
+    {
+      "value": "Retrieval-Augmented Generation",
+      "aliases": ["rag", "retrieval augmented generation", "retrieval-augmented generation", "retrieval augmented language model", "retrieval-augmented language model"]
+    },
+    {
+      "value": "Mixture of Experts",
+      "aliases": ["mixture of experts", "mixture-of-experts", "moe", "sparse expert", "sparse experts"]
+    },
+    {
+      "value": "Low-Rank Adaptation",
+      "aliases": ["lora", "low rank adaptation", "low-rank adaptation", "parameter efficient fine tuning", "parameter-efficient fine-tuning", "peft"]
+    },
+    {
+      "value": "RLHF",
+      "aliases": ["rlhf", "reinforcement learning from human feedback", "human feedback"]
+    },
+    {
+      "value": "Vision-Language Model",
+      "aliases": ["vision language model", "vision-language model", "vision language models", "vision-language models", "vlm", "vlms"]
+    },
+    {
+      "value": "CLIP",
+      "aliases": ["clip", "contrastive language image pretraining", "contrastive language-image pre-training", "contrastive language-image pretraining"]
+    },
+    {
+      "value": "Vision Transformer",
+      "aliases": ["vision transformer", "vision transformers", "vit"]
+    },
+    {
+      "value": "Graph Neural Network",
+      "aliases": ["graph neural network", "graph neural networks", "gnn", "gnns", "graph convolutional network", "graph convolutional networks", "gcn"]
+    },
+    {
+      "value": "Neural Radiance Field",
+      "aliases": ["neural radiance field", "neural radiance fields", "nerf", "nerfs"]
+    },
+    {
+      "value": "GAN",
+      "aliases": ["generative adversarial network", "generative adversarial networks", "gan", "gans"]
+    },
+    {
+      "value": "Prompt Engineering",
+      "aliases": ["prompt engineering", "prompt tuning", "instruction tuning", "in-context learning", "in context learning"]
+    },
+    {
+      "value": "Contrastive Learning",
+      "aliases": ["contrastive learning", "contrastive pretraining", "contrastive pre-training"]
+    },
+    {
+      "value": "Federated Learning",
+      "aliases": ["federated learning", "federated optimization"]
+    },
+    {
+      "value": "Self-Supervised Learning",
+      "aliases": ["self supervised learning", "self-supervised learning", "masked autoencoder", "masked autoencoders", "mae"]
+    }
+  ],
+  "task": [
+    {
+      "value": "Visual Question Answering",
+      "aliases": ["visual question answering", "vqa", "document vqa", "docvqa"]
+    },
+    {
+      "value": "Question Answering",
+      "aliases": ["question answering", "open domain question answering", "open-domain question answering"]
+    },
+    {
+      "value": "Text Generation",
+      "aliases": ["text generation", "natural language generation", "language generation"]
+    },
+    {
+      "value": "Information Retrieval",
+      "aliases": ["information retrieval", "neural retrieval", "dense retrieval", "document retrieval", "passage retrieval"]
+    },
+    {
+      "value": "Code Generation",
+      "aliases": ["code generation", "program synthesis", "code synthesis", "coding assistant"]
+    },
+    {
+      "value": "Object Detection",
+      "aliases": ["object detection", "object detector", "object detectors"]
+    },
+    {
+      "value": "Image Segmentation",
+      "aliases": ["semantic segmentation", "instance segmentation", "panoptic segmentation", "image segmentation"]
+    },
+    {
+      "value": "Reasoning",
+      "aliases": ["mathematical reasoning", "logical reasoning", "multi step reasoning", "multi-step reasoning", "chain of thought", "chain-of-thought"]
+    },
+    {
+      "value": "Agent Planning",
+      "aliases": ["agent planning", "planning agents", "tool use", "tool-use", "autonomous agent", "autonomous agents"]
+    },
+    {
+      "value": "Machine Translation",
+      "aliases": ["machine translation", "neural machine translation"]
+    },
+    {
+      "value": "Summarization",
+      "aliases": ["summarization", "summarisation", "abstractive summarization", "extractive summarization"]
+    },
+    {
+      "value": "Speech Recognition",
+      "aliases": ["speech recognition", "automatic speech recognition", "asr"]
+    },
+    {
+      "value": "Document Understanding",
+      "aliases": ["document understanding", "document parsing", "layout analysis"]
+    }
+  ],
+  "application": [
+    {
+      "value": "Medical Imaging",
+      "aliases": ["medical imaging", "radiology", "clinical imaging", "medical image analysis"]
+    },
+    {
+      "value": "Autonomous Driving",
+      "aliases": ["autonomous driving", "self driving", "self-driving", "autonomous vehicle", "autonomous vehicles"]
+    },
+    {
+      "value": "Drug Discovery",
+      "aliases": ["drug discovery", "molecule generation", "molecular design", "protein design"]
+    },
+    {
+      "value": "Robotics",
+      "aliases": ["robotics", "robot manipulation", "robot navigation", "embodied ai"]
+    },
+    {
+      "value": "Education",
+      "aliases": ["education", "educational technology", "intelligent tutoring", "tutoring system"]
+    },
+    {
+      "value": "Finance",
+      "aliases": ["finance", "financial forecasting", "algorithmic trading", "credit scoring"]
+    },
+    {
+      "value": "Cybersecurity",
+      "aliases": ["cybersecurity", "intrusion detection", "malware detection", "phishing detection"]
+    },
+    {
+      "value": "Recommendation Systems",
+      "aliases": ["recommendation", "recommender", "recsys", "collaborative filtering"]
+    },
+    {
+      "value": "Video Understanding",
+      "aliases": ["video understanding", "video analysis", "video generation", "action recognition"]
+    },
+    {
+      "value": "Scientific Discovery",
+      "aliases": ["scientific discovery", "ai for science", "materials discovery", "climate modeling"]
+    }
+  ]
+}
