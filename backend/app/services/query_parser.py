@@ -35,6 +35,8 @@ Available intents:
 7. "progress"          — show growth/progress of a country or field over time
                          - progress_type: "country" | "field"
                          - entity: ISO code (country) or field name
+                         - for multiple country trend comparison with a topic, return
+                           entities: ISO code list and topic: English facet keyword
                          (e.g. "한국 성장", "AI field growth", "US 10년 성장")
 8. "leaderboard"       — show rankings by country / institution / researcher
                          - leaderboard_type: "country" | "institution" | "researcher"
@@ -107,6 +109,9 @@ User: "트렌딩 토픽 보여줘"
 
 User: "한국 10년 성장"
 → {"intent":"progress","progress_type":"country","entity":"KR","explanation":"한국의 10년간 연구 성장 추이를 보여드립니다."}
+
+User: "한국과 미국의 디퓨전 논문 추이"
+→ {"intent":"progress","progress_type":"country","entities":["KR","US"],"topic":"diffusion","explanation":"한국과 미국의 diffusion 논문 추이를 비교합니다."}
 
 User: "AI 분야 성장"
 → {"intent":"progress","progress_type":"field","entity":"AI","explanation":"AI 분야의 연구 성장 추이를 보여드립니다."}

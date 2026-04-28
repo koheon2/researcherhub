@@ -1,5 +1,7 @@
 """Universal search endpoint — parse intent and return routing info."""
 
+import re
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text
@@ -10,6 +12,36 @@ from app.services.query_parser import parse_query
 from app.services.paper_facets import canonicalize_facet_query
 
 router = APIRouter(prefix="/search", tags=["search"])
+
+COUNTRY_QUERY_ALIASES = {
+    "한국": "KR",
+    "대한민국": "KR",
+    "korea": "KR",
+    "south korea": "KR",
+    "미국": "US",
+    "usa": "US",
+    "us": "US",
+    "united states": "US",
+    "중국": "CN",
+    "china": "CN",
+    "일본": "JP",
+    "japan": "JP",
+}
+
+TOPIC_QUERY_ALIASES = {
+    "디퓨전": "diffusion",
+    "diffusion": "diffusion",
+    "확산모델": "diffusion",
+    "확산 모델": "diffusion",
+    "트랜스포머": "transformer",
+    "transformer": "transformer",
+    "llm": "LLM",
+    "대규모 언어 모델": "LLM",
+    "rag": "RAG",
+    "검색증강": "RAG",
+}
+
+TREND_QUERY_TERMS = ("추이", "흐름", "성장", "변화", "트렌드", "trend", "progress", "growth")
 
 
 async def _topic_paper_count(db: AsyncSession, topic: str) -> tuple[str, int]:
@@ -30,6 +62,39 @@ async def _topic_paper_count(db: AsyncSession, topic: str) -> tuple[str, int]:
     return canonical, int(result.scalar_one() or 0)
 
 
+def _parse_country_topic_trend(q: str) -> dict[str, str] | None:
+    normalized = q.strip().lower()
+    if not any(term in normalized for term in TREND_QUERY_TERMS):
+        return None
+
+    countries: list[str] = []
+    for alias, code in COUNTRY_QUERY_ALIASES.items():
+        if alias.isascii():
+            matched = re.search(rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])", normalized) is not None
+        else:
+            matched = alias in normalized
+        if matched and code not in countries:
+            countries.append(code)
+
+    topic = None
+    for alias, canonical in TOPIC_QUERY_ALIASES.items():
+        if alias.isascii():
+            matched = re.search(rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])", normalized) is not None
+        else:
+            matched = alias in normalized
+        if matched:
+            topic = canonical
+            break
+
+    if len(countries) >= 2 and topic:
+        return {
+            "type": "country",
+            "entities": ",".join(countries[:3]),
+            "topic": topic,
+        }
+    return None
+
+
 @router.get("/universal")
 async def universal_search(
     q: str = Query(..., min_length=1),
@@ -43,6 +108,17 @@ async def universal_search(
     - answer: direct answer for stats queries
     """
     normalized_q = q.strip().lower()
+    country_topic_trend = _parse_country_topic_trend(q)
+    if country_topic_trend:
+        return {
+            "intent": "progress",
+            "params": country_topic_trend,
+            "explanation": "국가별 세부 토픽 논문 추이를 비교합니다.",
+            "redirect": "/progress",
+            "answer": None,
+            "answer_label": None,
+        }
+
     if normalized_q.endswith(" papers"):
         topic = q.strip()[:-len(" papers")].strip()
         if topic:
@@ -118,12 +194,18 @@ async def universal_search(
 
     # ── Progress ──────────────────────────────────────────────────────────────
     if intent == "progress":
+        progress_params = {
+            "type": parsed.get("progress_type", "country"),
+            "entity": parsed.get("entity", ""),
+        }
+        if parsed.get("entities"):
+            progress_params["entities"] = ",".join(parsed.get("entities", [])[:3])
+            progress_params.pop("entity", None)
+        if parsed.get("topic"):
+            progress_params["topic"] = parsed.get("topic")
         return {
             "intent": "progress",
-            "params": {
-                "type": parsed.get("progress_type", "country"),
-                "entity": parsed.get("entity", ""),
-            },
+            "params": progress_params,
             "explanation": parsed.get("explanation", ""),
             "redirect": "/progress",
             "answer": None,

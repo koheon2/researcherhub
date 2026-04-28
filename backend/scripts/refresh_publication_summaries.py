@@ -9,6 +9,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import argparse
 
 from sqlalchemy import text
 
@@ -315,7 +316,6 @@ WHERE p.year IS NOT NULL
 GROUP BY pf.facet_type, pf.facet_value, p.year
 """)
 
-
 COUNT_SQL = text("""
 SELECT 'publication_country_stats' AS table_name, COUNT(*) FROM publication_country_stats
 UNION ALL
@@ -351,7 +351,11 @@ TRUNCATE_SQL = {
 }
 
 
-async def main() -> None:
+def _should_refresh(only: set[str] | None, table_name: str) -> bool:
+    return only is None or table_name in only
+
+
+async def main(only: set[str] | None = None) -> None:
     async with AsyncSessionLocal() as db:
         quality_counts = (await db.execute(QUALITY_COUNT_SQL)).one()._mapping
         total_papers = int(quality_counts["total_papers"] or 0)
@@ -364,35 +368,41 @@ async def main() -> None:
             flush=True,
         )
 
-        print("refreshing publication_country_stats...", flush=True)
-        await db.execute(TRUNCATE_SQL["publication_country_stats"])
-        await db.execute(COUNTRY_SQL)
-        await db.commit()
+        if _should_refresh(only, "publication_country_stats"):
+            print("refreshing publication_country_stats...", flush=True)
+            await db.execute(TRUNCATE_SQL["publication_country_stats"])
+            await db.execute(COUNTRY_SQL)
+            await db.commit()
 
-        print("refreshing publication_institution_stats...", flush=True)
-        await db.execute(TRUNCATE_SQL["publication_institution_stats"])
-        await db.execute(INSTITUTION_SQL)
-        await db.commit()
+        if _should_refresh(only, "publication_institution_stats"):
+            print("refreshing publication_institution_stats...", flush=True)
+            await db.execute(TRUNCATE_SQL["publication_institution_stats"])
+            await db.execute(INSTITUTION_SQL)
+            await db.commit()
 
-        print("refreshing publication_institution_field_stats...", flush=True)
-        await db.execute(TRUNCATE_SQL["publication_institution_field_stats"])
-        await db.execute(INSTITUTION_FIELD_SQL)
-        await db.commit()
+        if _should_refresh(only, "publication_institution_field_stats"):
+            print("refreshing publication_institution_field_stats...", flush=True)
+            await db.execute(TRUNCATE_SQL["publication_institution_field_stats"])
+            await db.execute(INSTITUTION_FIELD_SQL)
+            await db.commit()
 
-        print("refreshing publication_country_year_stats...", flush=True)
-        await db.execute(TRUNCATE_SQL["publication_country_year_stats"])
-        await db.execute(COUNTRY_YEAR_SQL)
-        await db.commit()
+        if _should_refresh(only, "publication_country_year_stats"):
+            print("refreshing publication_country_year_stats...", flush=True)
+            await db.execute(TRUNCATE_SQL["publication_country_year_stats"])
+            await db.execute(COUNTRY_YEAR_SQL)
+            await db.commit()
 
-        print("refreshing paper_facet_summary...", flush=True)
-        await db.execute(TRUNCATE_SQL["paper_facet_summary"])
-        await db.execute(FACET_SQL)
-        await db.commit()
+        if _should_refresh(only, "paper_facet_summary"):
+            print("refreshing paper_facet_summary...", flush=True)
+            await db.execute(TRUNCATE_SQL["paper_facet_summary"])
+            await db.execute(FACET_SQL)
+            await db.commit()
 
-        print("refreshing paper_facet_year_summary...", flush=True)
-        await db.execute(TRUNCATE_SQL["paper_facet_year_summary"])
-        await db.execute(FACET_YEAR_SQL)
-        await db.commit()
+        if _should_refresh(only, "paper_facet_year_summary"):
+            print("refreshing paper_facet_year_summary...", flush=True)
+            await db.execute(TRUNCATE_SQL["paper_facet_year_summary"])
+            await db.execute(FACET_YEAR_SQL)
+            await db.commit()
 
         rows = (await db.execute(COUNT_SQL)).fetchall()
 
@@ -402,4 +412,11 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--only",
+        help="Comma-separated summary table names to refresh. Defaults to all.",
+    )
+    args = parser.parse_args()
+    only = {name.strip() for name in args.only.split(",") if name.strip()} if args.only else None
+    asyncio.run(main(only))

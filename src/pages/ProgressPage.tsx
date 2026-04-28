@@ -23,6 +23,8 @@ interface TrendPoint {
 interface ProgressData {
   type: string;
   entity: string;
+  topic?: string;
+  matched_axis?: string | null;
   trend: TrendPoint[];
   current: { researcher_count: number; contributions?: number; avg_citations: number };
 }
@@ -40,7 +42,28 @@ export function ProgressPage() {
   const [series, setSeries] = useState<ProgressData[]>([]);
   const [loading, setLoading] = useState(false);
   const [metric, setMetric] = useState<"researcher_count" | "avg_citations">("researcher_count");
+  const [topicFilter, setTopicFilter] = useState("");
   const lastAutoQuery = useRef<string | null>(null);
+
+  const fetchProgressData = useCallback(async (
+    rawEntity: string,
+    rawType: "country" | "field",
+    rawTopic = "",
+  ): Promise<ProgressData | null> => {
+    if (!rawEntity.trim()) return null;
+    const entity = rawType === "country" ? rawEntity.trim().toUpperCase() : rawEntity.trim();
+    const params = new URLSearchParams({
+      type: rawType,
+      entity,
+      years: "10",
+    });
+    if (rawType === "country" && rawTopic.trim()) {
+      params.set("topic", rawTopic.trim());
+    }
+    const res = await fetch(`${API_BASE}/progress?${params}`);
+    const data: ProgressData = await res.json();
+    return data.trend.length > 0 ? data : null;
+  }, []);
 
   const fetchEntity = useCallback(async (
     rawEntity: string,
@@ -50,12 +73,8 @@ export function ProgressPage() {
     if (!rawEntity.trim()) return;
     setLoading(true);
     try {
-      const entity = rawType === "country" ? rawEntity.trim().toUpperCase() : rawEntity.trim();
-      const res = await fetch(
-        `${API_BASE}/progress?type=${rawType}&entity=${encodeURIComponent(entity)}&years=10`
-      );
-      const data: ProgressData = await res.json();
-      if (data.trend.length > 0) {
+      const data = await fetchProgressData(rawEntity, rawType, topicFilter);
+      if (data) {
         setSeries(prev => {
           const next = replace ? [] : prev;
           if (next.some(s => s.type === data.type && s.entity.toLowerCase() === data.entity.toLowerCase())) {
@@ -70,7 +89,28 @@ export function ProgressPage() {
       setLoading(false);
       setInput("");
     }
-  }, []);
+  }, [fetchProgressData, topicFilter]);
+
+  const fetchEntities = useCallback(async (
+    rawEntities: string[],
+    rawType: "country" | "field",
+    rawTopic = "",
+  ) => {
+    const entities = rawEntities.map(e => e.trim()).filter(Boolean).slice(0, 3);
+    if (!entities.length) return;
+    setLoading(true);
+    try {
+      const results = await Promise.all(
+        entities.map(entity => fetchProgressData(entity, rawType, rawTopic))
+      );
+      setSeries(results.filter((item): item is ProgressData => item !== null));
+    } catch (e) {
+      console.error("Failed to fetch progress:", e);
+    } finally {
+      setLoading(false);
+      setInput("");
+    }
+  }, [fetchProgressData]);
 
   const addEntity = useCallback(async () => {
     if (!input.trim()) return;
@@ -81,17 +121,26 @@ export function ProgressPage() {
   useEffect(() => {
     const typeParam = searchParams.get("type");
     const entityParam = searchParams.get("entity");
+    const entitiesParam = searchParams.get("entities");
+    const topicParam = searchParams.get("topic") ?? "";
     const nextType = typeParam === "field" ? "field" : "country";
     if (typeParam === "field" || typeParam === "country") {
       setType(nextType);
     }
-    if (!entityParam) return;
+    setTopicFilter(nextType === "country" ? topicParam : "");
 
-    const autoKey = `${nextType}:${entityParam}`;
+    const rawEntities = entitiesParam
+      ? entitiesParam.split(",")
+      : entityParam
+        ? [entityParam]
+        : [];
+    if (!rawEntities.length) return;
+
+    const autoKey = `${nextType}:${rawEntities.join(",")}:${topicParam}`;
     if (autoKey === lastAutoQuery.current) return;
     lastAutoQuery.current = autoKey;
-    fetchEntity(entityParam, nextType, true);
-  }, [searchParams, fetchEntity]);
+    fetchEntities(rawEntities, nextType, topicParam);
+  }, [searchParams, fetchEntities]);
 
   const removeEntity = (idx: number) => {
     setSeries(prev => prev.filter((_, i) => i !== idx));
@@ -251,6 +300,11 @@ export function ProgressPage() {
           marginBottom: 12,
         }}>
           Country trends use publication-year author affiliation contributions.
+          {topicFilter && (
+            <span style={{ color: "#00d4ff" }}>
+              {" "}Filtered to {topicFilter} facet papers.
+            </span>
+          )}
         </div>
       )}
       {type === "field" && (
