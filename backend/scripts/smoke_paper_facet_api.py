@@ -97,6 +97,21 @@ def main() -> int:
             _require(search.get("intent") == "stats", "search universal did not return stats intent", failures)
             _require("answer" in search, "search universal stats missing answer", failures)
 
+        author_rank = _get(
+            client,
+            "/leaderboard?type=author&country=KR&topic=diffusion&sort=hotness&year_start=2024&year_end=2026&limit=5",
+            failures,
+        )
+        if isinstance(author_rank, dict):
+            _require(author_rank.get("type") == "author", "author leaderboard type mismatch", failures)
+            _require(author_rank.get("quality_filtered") is True, "author leaderboard is not quality-filtered", failures)
+            entries = author_rank.get("entries", [])
+            _require(isinstance(entries, list), "author leaderboard entries is not a list", failures)
+            if isinstance(entries, list) and entries:
+                first = entries[0]
+                for key in ("name", "contributions", "papers", "total_citations", "hotness_score"):
+                    _require(key in first, f"author leaderboard entry missing {key}", failures)
+
     if failures:
         print("\nPaper facet API smoke test failed")
         for failure in failures:

@@ -211,3 +211,54 @@ class PublicationInstitutionFieldStat(Base):
         ),
         Index("ix_pifs_institution_ror_id", "institution_ror_id"),
     )
+
+
+class PublicationAuthorCountryYearStat(Base):
+    __tablename__ = "publication_author_country_year_stats"
+
+    country_code = Column(String(5), primary_key=True)
+    author_id = Column(String(20), primary_key=True)
+    year = Column(SmallInteger, primary_key=True)
+    author_name = Column(String(200))
+    institution_name = Column(String(300))
+    contributions = Column(BigInteger, nullable=False, default=0)
+    papers = Column(BigInteger, nullable=False, default=0)
+    total_citations = Column(BigInteger, nullable=False, default=0)
+    avg_paper_citations = Column(Float, nullable=False, default=0)
+    refreshed_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_pacys_country_year", "country_code", "year"),
+        Index("ix_pacys_country_year_contributions", "country_code", "year", "contributions"),
+        Index("ix_pacys_author", "author_id"),
+    )
+
+
+class PublicationAuthorFacetYearStat(Base):
+    __tablename__ = "publication_author_facet_year_stats"
+
+    country_code = Column(String(5), primary_key=True)
+    facet_type = Column(String(32), primary_key=True)
+    facet_value = Column(String(255), primary_key=True)
+    author_id = Column(String(20), primary_key=True)
+    year = Column(SmallInteger, primary_key=True)
+    author_name = Column(String(200))
+    institution_name = Column(String(300))
+    contributions = Column(BigInteger, nullable=False, default=0)
+    papers = Column(BigInteger, nullable=False, default=0)
+    total_citations = Column(BigInteger, nullable=False, default=0)
+    avg_paper_citations = Column(Float, nullable=False, default=0)
+    refreshed_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_pafys_country_facet_year", "country_code", "facet_type", "facet_value", "year"),
+        Index(
+            "ix_pafys_country_facet_year_contributions",
+            "country_code",
+            "facet_type",
+            "facet_value",
+            "year",
+            "contributions",
+        ),
+        Index("ix_pafys_author", "author_id"),
+    )

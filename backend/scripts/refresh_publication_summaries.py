@@ -316,6 +316,101 @@ WHERE p.year IS NOT NULL
 GROUP BY pf.facet_type, pf.facet_value, p.year
 """)
 
+AUTHOR_COUNTRY_YEAR_SQL = text("""
+INSERT INTO publication_author_country_year_stats (
+    country_code,
+    author_id,
+    year,
+    author_name,
+    institution_name,
+    contributions,
+    papers,
+    total_citations,
+    avg_paper_citations,
+    refreshed_at
+)
+WITH excluded AS (
+    SELECT DISTINCT paper_id
+    FROM paper_quality_flags
+    WHERE severity = 'exclude'
+)
+SELECT
+    paa.country_code,
+    paa.author_id,
+    paa.publication_year AS year,
+    MAX(paa.author_name) AS author_name,
+    MAX(paa.institution_name) AS institution_name,
+    COUNT(*)::bigint AS contributions,
+    COUNT(DISTINCT paa.paper_id)::bigint AS papers,
+    COALESCE(SUM(p.citations), 0)::bigint AS total_citations,
+    COALESCE(AVG(p.citations), 0)::float AS avg_paper_citations,
+    now()
+FROM paper_author_affiliations paa
+JOIN papers p ON p.id = paa.paper_id
+LEFT JOIN excluded e ON e.paper_id = p.id
+WHERE paa.country_code IS NOT NULL
+  AND paa.country_code <> ''
+  AND paa.author_id IS NOT NULL
+  AND paa.author_id <> ''
+  AND paa.publication_year IS NOT NULL
+  AND paa.publication_year <= EXTRACT(YEAR FROM CURRENT_DATE)::int
+  AND e.paper_id IS NULL
+GROUP BY paa.country_code, paa.author_id, paa.publication_year
+""")
+
+AUTHOR_FACET_YEAR_SQL = text("""
+INSERT INTO publication_author_facet_year_stats (
+    country_code,
+    facet_type,
+    facet_value,
+    author_id,
+    year,
+    author_name,
+    institution_name,
+    contributions,
+    papers,
+    total_citations,
+    avg_paper_citations,
+    refreshed_at
+)
+WITH excluded AS (
+    SELECT DISTINCT paper_id
+    FROM paper_quality_flags
+    WHERE severity = 'exclude'
+)
+SELECT
+    paa.country_code,
+    pf.facet_type,
+    pf.facet_value,
+    paa.author_id,
+    paa.publication_year AS year,
+    MAX(paa.author_name) AS author_name,
+    MAX(paa.institution_name) AS institution_name,
+    COUNT(*)::bigint AS contributions,
+    COUNT(DISTINCT paa.paper_id)::bigint AS papers,
+    COALESCE(SUM(p.citations), 0)::bigint AS total_citations,
+    COALESCE(AVG(p.citations), 0)::float AS avg_paper_citations,
+    now()
+FROM paper_facets pf
+JOIN papers p ON p.id = pf.paper_id
+JOIN paper_author_affiliations paa ON paa.paper_id = pf.paper_id
+LEFT JOIN excluded e ON e.paper_id = p.id
+WHERE pf.facet_type IN ('method', 'task', 'application')
+  AND paa.country_code IS NOT NULL
+  AND paa.country_code <> ''
+  AND paa.author_id IS NOT NULL
+  AND paa.author_id <> ''
+  AND paa.publication_year IS NOT NULL
+  AND paa.publication_year <= EXTRACT(YEAR FROM CURRENT_DATE)::int
+  AND e.paper_id IS NULL
+GROUP BY
+    paa.country_code,
+    pf.facet_type,
+    pf.facet_value,
+    paa.author_id,
+    paa.publication_year
+""")
+
 COUNT_SQL = text("""
 SELECT 'publication_country_stats' AS table_name, COUNT(*) FROM publication_country_stats
 UNION ALL
@@ -328,6 +423,10 @@ UNION ALL
 SELECT 'paper_facet_summary' AS table_name, COUNT(*) FROM paper_facet_summary
 UNION ALL
 SELECT 'paper_facet_year_summary' AS table_name, COUNT(*) FROM paper_facet_year_summary
+UNION ALL
+SELECT 'publication_author_country_year_stats' AS table_name, COUNT(*) FROM publication_author_country_year_stats
+UNION ALL
+SELECT 'publication_author_facet_year_stats' AS table_name, COUNT(*) FROM publication_author_facet_year_stats
 ORDER BY table_name
 """)
 
@@ -348,6 +447,8 @@ TRUNCATE_SQL = {
     "publication_institution_field_stats": text("TRUNCATE publication_institution_field_stats"),
     "paper_facet_summary": text("TRUNCATE paper_facet_summary"),
     "paper_facet_year_summary": text("TRUNCATE paper_facet_year_summary"),
+    "publication_author_country_year_stats": text("TRUNCATE publication_author_country_year_stats"),
+    "publication_author_facet_year_stats": text("TRUNCATE publication_author_facet_year_stats"),
 }
 
 
@@ -402,6 +503,18 @@ async def main(only: set[str] | None = None) -> None:
             print("refreshing paper_facet_year_summary...", flush=True)
             await db.execute(TRUNCATE_SQL["paper_facet_year_summary"])
             await db.execute(FACET_YEAR_SQL)
+            await db.commit()
+
+        if _should_refresh(only, "publication_author_country_year_stats"):
+            print("refreshing publication_author_country_year_stats...", flush=True)
+            await db.execute(TRUNCATE_SQL["publication_author_country_year_stats"])
+            await db.execute(AUTHOR_COUNTRY_YEAR_SQL)
+            await db.commit()
+
+        if _should_refresh(only, "publication_author_facet_year_stats"):
+            print("refreshing publication_author_facet_year_stats...", flush=True)
+            await db.execute(TRUNCATE_SQL["publication_author_facet_year_stats"])
+            await db.execute(AUTHOR_FACET_YEAR_SQL)
             await db.commit()
 
         rows = (await db.execute(COUNT_SQL)).fetchall()

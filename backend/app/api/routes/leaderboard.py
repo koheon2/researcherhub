@@ -300,49 +300,51 @@ async def _author_leaderboard(
         "citations": "total_citations DESC, contributions DESC",
     }.get(sort, "total_citations DESC, contributions DESC")
 
-    topic_cte = """
-        WITH matched_papers AS MATERIALIZED (
-            SELECT DISTINCT paper_id
-            FROM paper_facets
-            WHERE facet_value = CAST(:topic AS text)
-              AND facet_type = ANY(CAST(:axes AS text[]))
-        ),
-        base AS (
-    """ if canonical_topic else "WITH base AS ("
-    topic_join = "JOIN matched_papers mp ON mp.paper_id = paa.paper_id" if canonical_topic else ""
+    # Keep the unfiltered global view on the legacy Researcher table. The
+    # publication-time author summaries are optimized for sliced exploration.
+    if not country and not canonical_topic and year_start is None and year_end is None:
+        return await _researcher_leaderboard(db, None, limit)
+
+    summary_table = (
+        "publication_author_facet_year_stats"
+        if canonical_topic
+        else "publication_author_country_year_stats"
+    )
+    facet_filter = (
+        "AND s.facet_value = CAST(:topic AS text) "
+        "AND s.facet_type = ANY(CAST(:axes AS text[]))"
+        if canonical_topic
+        else ""
+    )
+    country_filter = "AND s.country_code = CAST(:country AS text)" if country else ""
 
     result = await db.execute(
         text(f"""
-        {topic_cte}
+        WITH base AS (
             SELECT
-                paa.author_id,
-                MAX(paa.author_name) AS author_name,
-                MAX(paa.institution_name) AS institution_name,
-                MAX(paa.country_code) AS country_code,
-                COUNT(*)::bigint AS contributions,
-                COUNT(DISTINCT paa.paper_id)::bigint AS papers,
-                COALESCE(SUM(p.citations), 0)::bigint AS total_citations,
-                COALESCE(AVG(p.citations), 0)::float AS avg_paper_citations,
-                COUNT(*) FILTER (
-                    WHERE paa.publication_year >= :end_year - 2
-                )::bigint AS recent_contributions,
-                MIN(paa.publication_year) AS min_year,
-                MAX(paa.publication_year) AS max_year
-            FROM paper_author_affiliations paa
-            JOIN papers p ON p.id = paa.paper_id
-            {topic_join}
-            WHERE paa.author_id IS NOT NULL
-              AND paa.author_id <> ''
-              AND paa.publication_year >= :start_year
-              AND paa.publication_year <= :end_year
-              AND (CAST(:country AS text) IS NULL OR paa.country_code = CAST(:country AS text))
-              AND NOT EXISTS (
-                  SELECT 1
-                  FROM paper_quality_flags pqf
-                  WHERE pqf.paper_id = paa.paper_id
-                    AND pqf.severity = 'exclude'
-              )
-            GROUP BY paa.author_id
+                s.author_id,
+                MAX(s.author_name) AS author_name,
+                MAX(s.institution_name) AS institution_name,
+                MAX(s.country_code) AS country_code,
+                SUM(s.contributions)::bigint AS contributions,
+                SUM(s.papers)::bigint AS papers,
+                COALESCE(SUM(s.total_citations), 0)::bigint AS total_citations,
+                CASE
+                    WHEN SUM(s.papers) > 0
+                        THEN (SUM(s.total_citations)::float / SUM(s.papers))
+                    ELSE 0
+                END AS avg_paper_citations,
+                COALESCE(SUM(s.contributions) FILTER (
+                    WHERE s.year >= :end_year - 2
+                ), 0)::bigint AS recent_contributions,
+                MIN(s.year) AS min_year,
+                MAX(s.year) AS max_year
+            FROM {summary_table} s
+            WHERE s.year >= :start_year
+              AND s.year <= :end_year
+              {country_filter}
+              {facet_filter}
+            GROUP BY s.author_id
         )
         SELECT
             *,
