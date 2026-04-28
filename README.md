@@ -27,23 +27,63 @@ ResearcherHub는 AI/CS 연구 논문과 연구자 정보를 기반으로 국가,
 
 ## 기술 스택
 
+현재 레포는 “대용량 원천 DB + 미리 계산한 summary table + 얇은 API + 시각화 중심 프론트” 구조입니다. 2,000만 건 이상 논문/저자 데이터를 매 요청마다 직접 조인하지 않고, 운영 배치로 만든 country/institution/facet/author summary를 API에서 읽는 방향으로 설계되어 있습니다.
+
 ### Frontend
 
-- React 19
-- TypeScript
-- Vite
-- React Router
-- Three.js / React Three Fiber
-- Cesium
+| 영역 | 기술 | 용도 |
+| --- | --- | --- |
+| UI framework | React 19 | 지도, 비교 패널, 트렌딩, 리더보드, progress 화면 구성 |
+| Language | TypeScript 5.9 | 프론트 타입 안정성 |
+| Build/dev server | Vite 8 | 로컬 개발 서버와 production build |
+| Routing | React Router 7 | 자연어 쿼리 결과를 compare/progress/leaderboard 등 화면으로 라우팅 |
+| 3D/지도 | Three.js, React Three Fiber, Cesium | 연구자 globe/map 시각화 |
+| Force layout 유틸 | d3-force | 네트워크/공간 배치 실험용 의존성 |
+| 품질 확인 | `npm run build` | TypeScript compile + Vite build 회귀 확인 |
 
 ### Backend
 
-- FastAPI
-- SQLAlchemy async
-- PostgreSQL
-- Alembic
-- OpenAI API
-- OpenAlex API / snapshot utilities
+| 영역 | 기술 | 용도 |
+| --- | --- | --- |
+| API server | FastAPI 0.115 | `/api/compare`, `/api/progress`, `/api/trending`, `/api/leaderboard`, `/api/search/universal` |
+| ASGI server | Uvicorn | 로컬/배포용 Python API 실행 |
+| ORM/DB access | SQLAlchemy 2 async, asyncpg | PostgreSQL 비동기 접근 |
+| Migration | Alembic | schema 변경 기준. `Base.metadata.create_all`은 개발 편의용으로만 유지 |
+| Config | Pydantic Settings, python-dotenv | `backend/.env` 기반 환경변수 로딩 |
+| HTTP client | httpx | OpenAlex/외부 API 및 smoke test |
+| Scheduler | APScheduler | 백그라운드/주기 작업 기반 |
+| LLM query parser | OpenAI API | 자연어 질문을 화면 intent/params로 변환 |
+| Snapshot/Cloud utilities | boto3 | OpenAlex snapshot/import pipeline 보조 |
+
+### Database / Data Layer
+
+| 영역 | 기술/방식 | 용도 |
+| --- | --- | --- |
+| Primary DB | PostgreSQL 16 권장 | 연구자, 논문, affiliation, facet, summary 저장 |
+| 원천 scholarly graph | OpenAlex snapshot/API | `researchers`, `papers`, `paper_authors` 수집 기반 |
+| 기관 정규화 | ROR dump + OpenAlex institutions snapshot | raw institution name을 canonical/ROR로 매핑 |
+| 논문 facet | seed dictionary + title/abstract keyword rules | aboutness/method/task/application weak-label 분류 |
+| 품질 필터 | `paper_quality_flags` | 원본 삭제 없이 제품 지표에서 conservative exclude 적용 |
+| API 성능 계층 | summary tables | country/institution/facet/author leaderboard와 progress를 빠르게 제공 |
+
+핵심 summary table:
+
+- `publication_country_stats`, `publication_country_year_stats`
+- `publication_institution_stats`, `publication_institution_field_stats`
+- `paper_facet_summary`, `paper_facet_year_summary`
+- `publication_author_country_year_stats`
+- `publication_author_facet_year_stats`
+
+### Runtime / Tooling
+
+| 항목 | 권장 |
+| --- | --- |
+| Node.js | Vite 8과 React 19를 실행할 수 있는 최신 LTS |
+| Python | 3.11 계열 |
+| PostgreSQL | 16 |
+| Backend env | `backend/.venv` |
+| Frontend env | npm + `node_modules` |
+| Secret 관리 | `backend/.env` 로컬 파일. Git에 커밋 금지 |
 
 ## 데이터 모델 개요
 
@@ -60,8 +100,11 @@ ResearcherHub는 AI/CS 연구 논문과 연구자 정보를 기반으로 국가,
 | `publication_country_stats` | 국가별 publication-time 요약 |
 | `publication_country_year_stats` | 국가별 publication-year trend 요약 |
 | `publication_institution_stats` | 기관별 publication-time 요약 |
+| `publication_institution_field_stats` | 기관별/세부 분야별 publication-time 요약 |
 | `paper_facet_summary` | facet별 전체 count/citation/growth 요약 |
 | `paper_facet_year_summary` | facet별 연도별 trend 요약 |
+| `publication_author_country_year_stats` | 국가/연도/저자별 publication-time author leaderboard 요약 |
+| `publication_author_facet_year_stats` | 국가/연도/facet/저자별 세부 토픽 author leaderboard 요약 |
 | `paper_quality_flags` | 원본 보존형 paper 품질 플래그 |
 
 `paper_author_affiliations`는 국가/기관 비교의 기준입니다. 연구자의 현재 소속이 아니라 논문이 발표된 시점의 저자 소속을 contribution 단위로 계산합니다.
