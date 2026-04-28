@@ -6,6 +6,7 @@ from sqlalchemy import distinct, exists, select, func, text
 from app.db.database import get_db
 from app.models.paper import Paper, PaperAuthorAffiliation, PaperQualityFlag
 from app.models.researcher import Researcher
+from app.services.paper_facets import canonicalize_facet_query
 
 router = APIRouter(prefix="/leaderboard", tags=["leaderboard"])
 
@@ -38,8 +39,13 @@ def _paper_subfield(field: str | None) -> str | None:
 
 @router.get("")
 async def get_leaderboard(
-    type: str = Query("country", description="country | institution | researcher"),
+    type: str = Query("country", description="country | institution | researcher | author"),
     field: str | None = Query(None, description="Filter by field"),
+    country: str | None = Query(None, description="Publication-time country filter for author rankings"),
+    topic: str | None = Query(None, description="Facet filter for author rankings"),
+    year_start: int | None = Query(None, ge=1900, le=2100),
+    year_end: int | None = Query(None, ge=1900, le=2100),
+    sort: str = Query("citations", description="citations | contributions | papers | hotness"),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
@@ -47,6 +53,10 @@ async def get_leaderboard(
         return await _country_leaderboard(db, field, limit)
     elif type == "institution":
         return await _institution_leaderboard(db, field, limit)
+    elif type == "author":
+        return await _author_leaderboard(db, country, topic, year_start, year_end, sort, limit)
+    elif country or topic or year_start or year_end or sort in {"contributions", "papers", "hotness"}:
+        return await _author_leaderboard(db, country, topic, year_start, year_end, sort, limit)
     else:
         return await _researcher_leaderboard(db, field, limit)
 
@@ -254,4 +264,135 @@ async def _researcher_leaderboard(db: AsyncSession, field: str | None, limit: in
             }
             for i, r in enumerate(researchers)
         ],
+    }
+
+
+async def _author_leaderboard(
+    db: AsyncSession,
+    country: str | None,
+    topic: str | None,
+    year_start: int | None,
+    year_end: int | None,
+    sort: str,
+    limit: int,
+) -> dict:
+    current_year = int(await db.scalar(text("SELECT EXTRACT(YEAR FROM CURRENT_DATE)::int")) or 2026)
+    end_year = year_end or current_year
+    if year_start is not None:
+        start_year = year_start
+    elif sort == "hotness":
+        start_year = max(1900, end_year - 2)
+    else:
+        start_year = 2017
+    if start_year > end_year:
+        start_year, end_year = end_year, start_year
+
+    canonical_topic = None
+    axes = ["aboutness", "method", "task", "application"]
+    if topic:
+        canonical_topic, matched_axes = canonicalize_facet_query(topic)
+        axes = matched_axes or axes
+
+    sort_expr = {
+        "contributions": "contributions DESC, total_citations DESC",
+        "papers": "papers DESC, total_citations DESC",
+        "hotness": "hotness_score DESC, recent_contributions DESC, total_citations DESC",
+        "citations": "total_citations DESC, contributions DESC",
+    }.get(sort, "total_citations DESC, contributions DESC")
+
+    topic_cte = """
+        WITH matched_papers AS MATERIALIZED (
+            SELECT DISTINCT paper_id
+            FROM paper_facets
+            WHERE facet_value = CAST(:topic AS text)
+              AND facet_type = ANY(CAST(:axes AS text[]))
+        ),
+        base AS (
+    """ if canonical_topic else "WITH base AS ("
+    topic_join = "JOIN matched_papers mp ON mp.paper_id = paa.paper_id" if canonical_topic else ""
+
+    result = await db.execute(
+        text(f"""
+        {topic_cte}
+            SELECT
+                paa.author_id,
+                MAX(paa.author_name) AS author_name,
+                MAX(paa.institution_name) AS institution_name,
+                MAX(paa.country_code) AS country_code,
+                COUNT(*)::bigint AS contributions,
+                COUNT(DISTINCT paa.paper_id)::bigint AS papers,
+                COALESCE(SUM(p.citations), 0)::bigint AS total_citations,
+                COALESCE(AVG(p.citations), 0)::float AS avg_paper_citations,
+                COUNT(*) FILTER (
+                    WHERE paa.publication_year >= :end_year - 2
+                )::bigint AS recent_contributions,
+                MIN(paa.publication_year) AS min_year,
+                MAX(paa.publication_year) AS max_year
+            FROM paper_author_affiliations paa
+            JOIN papers p ON p.id = paa.paper_id
+            {topic_join}
+            WHERE paa.author_id IS NOT NULL
+              AND paa.author_id <> ''
+              AND paa.publication_year >= :start_year
+              AND paa.publication_year <= :end_year
+              AND (CAST(:country AS text) IS NULL OR paa.country_code = CAST(:country AS text))
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM paper_quality_flags pqf
+                  WHERE pqf.paper_id = paa.paper_id
+                    AND pqf.severity = 'exclude'
+              )
+            GROUP BY paa.author_id
+        )
+        SELECT
+            *,
+            (
+                recent_contributions * 10
+                + LEAST(total_citations, 5000)::float / 100
+                + papers * 2
+            ) AS hotness_score
+        FROM base
+        ORDER BY {sort_expr}
+        LIMIT :limit
+        """),
+        {
+            "country": country.upper() if country else None,
+            "topic": canonical_topic,
+            "axes": axes,
+            "start_year": start_year,
+            "end_year": end_year,
+            "limit": limit,
+        },
+    )
+    rows = result.fetchall()
+    return {
+        "type": "author",
+        "field": None,
+        "country": country.upper() if country else None,
+        "topic": canonical_topic,
+        "year_start": start_year,
+        "year_end": end_year,
+        "sort": sort,
+        "entries": [
+            {
+                "rank": i + 1,
+                "key": r.author_id,
+                "name": r.author_name or r.author_id,
+                "institution": r.institution_name,
+                "country": r.country_code,
+                "citations": int(r.total_citations or 0),
+                "h_index": 0,
+                "works_count": int(r.papers or 0),
+                "contributions": int(r.contributions or 0),
+                "papers": int(r.papers or 0),
+                "total_citations": int(r.total_citations or 0),
+                "avg_paper_citations": round(float(r.avg_paper_citations or 0), 1),
+                "recent_contributions": int(r.recent_contributions or 0),
+                "hotness_score": round(float(r.hotness_score or 0), 1),
+                "min_year": int(r.min_year) if r.min_year is not None else None,
+                "max_year": int(r.max_year) if r.max_year is not None else None,
+            }
+            for i, r in enumerate(rows)
+        ],
+        **QUALITY_PROVENANCE,
     }

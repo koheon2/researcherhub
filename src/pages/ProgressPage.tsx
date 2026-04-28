@@ -43,6 +43,7 @@ export function ProgressPage() {
   const [loading, setLoading] = useState(false);
   const [metric, setMetric] = useState<"researcher_count" | "avg_citations">("researcher_count");
   const [topicFilter, setTopicFilter] = useState("");
+  const [years, setYears] = useState(10);
   const lastAutoQuery = useRef<string | null>(null);
 
   const fetchProgressData = useCallback(async (
@@ -55,7 +56,7 @@ export function ProgressPage() {
     const params = new URLSearchParams({
       type: rawType,
       entity,
-      years: "10",
+      years: String(years),
     });
     if (rawType === "country" && rawTopic.trim()) {
       params.set("topic", rawTopic.trim());
@@ -63,7 +64,7 @@ export function ProgressPage() {
     const res = await fetch(`${API_BASE}/progress?${params}`);
     const data: ProgressData = await res.json();
     return data.trend.length > 0 ? data : null;
-  }, []);
+  }, [years]);
 
   const fetchEntity = useCallback(async (
     rawEntity: string,
@@ -136,11 +137,11 @@ export function ProgressPage() {
         : [];
     if (!rawEntities.length) return;
 
-    const autoKey = `${nextType}:${rawEntities.join(",")}:${topicParam}`;
+    const autoKey = `${nextType}:${rawEntities.join(",")}:${topicParam}:${years}`;
     if (autoKey === lastAutoQuery.current) return;
     lastAutoQuery.current = autoKey;
     fetchEntities(rawEntities, nextType, topicParam);
-  }, [searchParams, fetchEntities]);
+  }, [searchParams, fetchEntities, years]);
 
   const removeEntity = (idx: number) => {
     setSeries(prev => prev.filter((_, i) => i !== idx));
@@ -289,6 +290,23 @@ export function ProgressPage() {
               {m.label}
             </button>
           ))}
+        </div>
+
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8,
+          marginLeft: series.length ? 0 : "auto",
+        }}>
+          <span style={{ fontFamily: PIXEL_FONT, fontSize: 6, color: "#334155" }}>
+            {years}Y
+          </span>
+          <input
+            type="range"
+            min={3}
+            max={20}
+            value={years}
+            onChange={e => setYears(Number(e.target.value))}
+            style={{ width: 120 }}
+          />
         </div>
       </div>
 

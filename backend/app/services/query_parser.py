@@ -39,7 +39,10 @@ Available intents:
                            entities: ISO code list and topic: English facet keyword
                          (e.g. "한국 성장", "AI field growth", "US 10년 성장")
 8. "leaderboard"       — show rankings by country / institution / researcher
-                         - leaderboard_type: "country" | "institution" | "researcher"
+                         - leaderboard_type: "country" | "institution" | "researcher" | "author"
+                         - for publication-time author rankings, include country, topic,
+                           sort: "citations"|"hotness"|"contributions"|"papers",
+                           and optional year_start/year_end
                          (e.g. "국가별 랭킹", "기관 순위", "top researchers")
 9. "researcher_dna"    — deep analysis of a specific researcher's profile
                          - name: researcher's name
@@ -121,6 +124,9 @@ User: "국가별 랭킹"
 
 User: "기관 순위"
 → {"intent":"leaderboard","leaderboard_type":"institution","explanation":"기관별 연구 순위를 보여드립니다."}
+
+User: "한국에서 최근 핫한 디퓨전 연구자"
+→ {"intent":"leaderboard","leaderboard_type":"author","country":"KR","topic":"diffusion","sort":"hotness","year_start":2024,"year_end":2026,"explanation":"한국의 최근 diffusion 연구자 순위를 보여드립니다."}
 
 User: "Hinton DNA 분석"
 → {"intent":"researcher_dna","name":"Hinton","explanation":"Geoffrey Hinton의 연구 DNA를 분석합니다."}

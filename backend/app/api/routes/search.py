@@ -42,6 +42,9 @@ TOPIC_QUERY_ALIASES = {
 }
 
 TREND_QUERY_TERMS = ("추이", "흐름", "성장", "변화", "트렌드", "trend", "progress", "growth")
+AUTHOR_RANKING_TERMS = ("연구자", "researcher", "researchers", "author", "authors")
+HOT_QUERY_TERMS = ("핫", "뜨는", "최근", "hot", "rising", "trending", "recent")
+TOP_QUERY_TERMS = ("상위", "순위", "랭킹", "top", "leaderboard", "ranking")
 
 
 async def _topic_paper_count(db: AsyncSession, topic: str) -> tuple[str, int]:
@@ -95,6 +98,52 @@ def _parse_country_topic_trend(q: str) -> dict[str, str] | None:
     return None
 
 
+def _find_country_codes(normalized: str) -> list[str]:
+    countries: list[str] = []
+    for alias, code in COUNTRY_QUERY_ALIASES.items():
+        if alias.isascii():
+            matched = re.search(rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])", normalized) is not None
+        else:
+            matched = alias in normalized
+        if matched and code not in countries:
+            countries.append(code)
+    return countries
+
+
+def _find_topic(normalized: str) -> str | None:
+    for alias, canonical in TOPIC_QUERY_ALIASES.items():
+        if alias.isascii():
+            matched = re.search(rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])", normalized) is not None
+        else:
+            matched = alias in normalized
+        if matched:
+            return canonical
+    return None
+
+
+def _parse_author_leaderboard(q: str) -> dict[str, str] | None:
+    normalized = q.strip().lower()
+    if not any(term in normalized for term in AUTHOR_RANKING_TERMS):
+        return None
+    if not any(term in normalized for term in (*HOT_QUERY_TERMS, *TOP_QUERY_TERMS)):
+        return None
+
+    countries = _find_country_codes(normalized)
+    topic = _find_topic(normalized)
+    params = {
+        "type": "author",
+        "sort": "hotness" if any(term in normalized for term in HOT_QUERY_TERMS) else "citations",
+    }
+    if countries:
+        params["country"] = countries[0]
+    if topic:
+        params["topic"] = topic
+    if any(term in normalized for term in HOT_QUERY_TERMS):
+        params["year_start"] = "2024"
+        params["year_end"] = "2026"
+    return params
+
+
 @router.get("/universal")
 async def universal_search(
     q: str = Query(..., min_length=1),
@@ -108,6 +157,17 @@ async def universal_search(
     - answer: direct answer for stats queries
     """
     normalized_q = q.strip().lower()
+    author_leaderboard = _parse_author_leaderboard(q)
+    if author_leaderboard:
+        return {
+            "intent": "leaderboard",
+            "params": author_leaderboard,
+            "explanation": "publication-time 논문 데이터 기준 연구자 순위를 보여드립니다.",
+            "redirect": "/leaderboard",
+            "answer": None,
+            "answer_label": None,
+        }
+
     country_topic_trend = _parse_country_topic_trend(q)
     if country_topic_trend:
         return {
@@ -214,9 +274,13 @@ async def universal_search(
 
     # ── Leaderboard ───────────────────────────────────────────────────────────
     if intent == "leaderboard":
+        leaderboard_params = {"type": parsed.get("leaderboard_type", "country")}
+        for key in ("country", "topic", "sort", "year_start", "year_end"):
+            if parsed.get(key):
+                leaderboard_params[key] = str(parsed.get(key))
         return {
             "intent": "leaderboard",
-            "params": {"type": parsed.get("leaderboard_type", "country")},
+            "params": leaderboard_params,
             "explanation": parsed.get("explanation", ""),
             "redirect": "/leaderboard",
             "answer": None,

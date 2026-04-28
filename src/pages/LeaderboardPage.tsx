@@ -6,7 +6,7 @@ const API_BASE = "http://localhost:8000/api";
 const PIXEL_FONT = "'Press Start 2P', monospace";
 const MONO_FONT  = "'Share Tech Mono', monospace";
 
-type LeaderboardType = "country" | "institution" | "researcher";
+type LeaderboardType = "country" | "institution" | "researcher" | "author";
 
 interface LeaderboardEntry {
   rank: number;
@@ -23,6 +23,10 @@ interface LeaderboardEntry {
   citations?: number;
   h_index?: number;
   works_count?: number;
+  recent_contributions?: number;
+  hotness_score?: number;
+  min_year?: number;
+  max_year?: number;
 }
 
 interface LeaderboardData {
@@ -57,6 +61,11 @@ export function LeaderboardPage() {
   const [searchParams] = useSearchParams();
   const [type, setType] = useState<LeaderboardType>("country");
   const [field, setField] = useState("");
+  const [country, setCountry] = useState("");
+  const [topic, setTopic] = useState("");
+  const [sort, setSort] = useState("citations");
+  const [yearStart, setYearStart] = useState(2017);
+  const [yearEnd, setYearEnd] = useState(2026);
   const [data, setData] = useState<LeaderboardData | null>(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -65,7 +74,14 @@ export function LeaderboardPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ type, limit: "20" });
-      if (field) params.set("field", field);
+      if (field && type !== "author") params.set("field", field);
+      if (type === "author") {
+        if (country) params.set("country", country.toUpperCase());
+        if (topic) params.set("topic", topic);
+        params.set("sort", sort);
+        params.set("year_start", String(Math.min(yearStart, yearEnd)));
+        params.set("year_end", String(Math.max(yearStart, yearEnd)));
+      }
       const res = await fetch(`${API_BASE}/leaderboard?${params}`);
       setData(await res.json());
     } catch (e) {
@@ -73,26 +89,36 @@ export function LeaderboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [type, field]);
+  }, [type, field, country, topic, sort, yearStart, yearEnd]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   useEffect(() => {
     const typeParam = searchParams.get("type");
     const fieldParam = searchParams.get("field");
-    if (typeParam === "country" || typeParam === "institution" || typeParam === "researcher") {
+    const countryParam = searchParams.get("country");
+    const topicParam = searchParams.get("topic");
+    const sortParam = searchParams.get("sort");
+    const yearStartParam = searchParams.get("year_start");
+    const yearEndParam = searchParams.get("year_end");
+    if (typeParam === "country" || typeParam === "institution" || typeParam === "researcher" || typeParam === "author") {
       setType(typeParam);
     }
     setField(fieldParam ?? "");
+    setCountry(countryParam ?? "");
+    setTopic(topicParam ?? "");
+    setSort(sortParam ?? "citations");
+    if (yearStartParam) setYearStart(Number(yearStartParam));
+    if (yearEndParam) setYearEnd(Number(yearEndParam));
   }, [searchParams]);
 
   const entries = data?.entries ?? [];
-  const maxScore = type === "researcher"
+  const maxScore = type === "researcher" || type === "author"
     ? Math.max(...entries.map(e => e.citations ?? 0), 1)
     : Math.max(...entries.map(e => e.total_citations ?? 0), 1);
 
   const handleRowClick = (entry: LeaderboardEntry) => {
-    if (type === "researcher") {
+    if (type === "researcher" || type === "author") {
       navigate(`/researcher/${entry.key}`);
     } else if (type === "country") {
       // Compare top 2 countries (this + next)
@@ -130,7 +156,7 @@ export function LeaderboardPage() {
       }}>
         {/* Type tabs */}
         <div style={{ display: "flex", gap: 2 }}>
-          {(["country", "institution", "researcher"] as const).map(t => (
+          {(["country", "institution", "researcher", "author"] as const).map(t => (
             <button
               key={t}
               onClick={() => setType(t)}
@@ -150,6 +176,7 @@ export function LeaderboardPage() {
         </div>
 
         {/* Field filter */}
+        {type !== "author" && (
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ fontFamily: PIXEL_FONT, fontSize: 6, color: "#334155" }}>FIELD:</span>
           <select
@@ -170,10 +197,60 @@ export function LeaderboardPage() {
             ))}
           </select>
         </div>
+        )}
+
+        {type === "author" && (
+          <>
+            <input
+              value={country}
+              onChange={e => setCountry(e.target.value.toUpperCase())}
+              placeholder="COUNTRY"
+              maxLength={2}
+              style={smallInputStyle}
+            />
+            <input
+              value={topic}
+              onChange={e => setTopic(e.target.value)}
+              placeholder="TOPIC e.g. diffusion"
+              style={{ ...smallInputStyle, width: 150 }}
+            />
+            <select
+              value={sort}
+              onChange={e => setSort(e.target.value)}
+              style={selectStyle}
+            >
+              <option value="citations">CITATIONS</option>
+              <option value="hotness">HOTNESS</option>
+              <option value="contributions">CONTRIBUTIONS</option>
+              <option value="papers">PAPERS</option>
+            </select>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontFamily: PIXEL_FONT, fontSize: 6, color: "#334155" }}>
+                {Math.min(yearStart, yearEnd)}-{Math.max(yearStart, yearEnd)}
+              </span>
+              <input
+                type="range"
+                min={2017}
+                max={2026}
+                value={yearStart}
+                onChange={e => setYearStart(Number(e.target.value))}
+                style={{ width: 90 }}
+              />
+              <input
+                type="range"
+                min={2017}
+                max={2026}
+                value={yearEnd}
+                onChange={e => setYearEnd(Number(e.target.value))}
+                style={{ width: 90 }}
+              />
+            </div>
+          </>
+        )}
       </div>
 
       {/* Column headers */}
-      {type !== "researcher" ? (
+      {type !== "researcher" && type !== "author" ? (
         <div style={{
           display: "grid",
           gridTemplateColumns: "60px 1fr 120px 160px 100px 200px",
@@ -188,6 +265,23 @@ export function LeaderboardPage() {
           <span style={{ ...headerStyle, textAlign: "right" }}>TOTAL CITATIONS</span>
           <span style={{ ...headerStyle, textAlign: "right" }}>PAPERS</span>
           <span style={headerStyle}>SCORE</span>
+        </div>
+      ) : type === "author" ? (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "60px 1fr 160px 90px 90px 90px 120px",
+          gap: 12,
+          padding: "8px 16px",
+          borderBottom: "1px solid #1e293b",
+          marginBottom: 4,
+        }}>
+          <span style={headerStyle}>RANK</span>
+          <span style={headerStyle}>AUTHOR</span>
+          <span style={headerStyle}>INSTITUTION</span>
+          <span style={{ ...headerStyle, textAlign: "right" }}>CONTRIB.</span>
+          <span style={{ ...headerStyle, textAlign: "right" }}>PAPERS</span>
+          <span style={{ ...headerStyle, textAlign: "right" }}>CIT.</span>
+          <span style={headerStyle}>HOT</span>
         </div>
       ) : (
         <div style={{
@@ -222,11 +316,11 @@ export function LeaderboardPage() {
       {!loading && entries.map((entry) => {
         const medal = getMedal(entry.rank);
         const rankColor = getRankColor(entry.rank);
-        const score = type === "researcher" ? (entry.citations ?? 0) : (entry.total_citations ?? 0);
+        const score = type === "researcher" || type === "author" ? (entry.citations ?? 0) : (entry.total_citations ?? 0);
         const barPct = (score / maxScore) * 100;
         const isTop3 = entry.rank <= 3;
 
-        if (type !== "researcher") {
+        if (type !== "researcher" && type !== "author") {
           return (
             <div
               key={entry.key}
@@ -302,6 +396,64 @@ export function LeaderboardPage() {
                     width: `${barPct}%`,
                     background: `linear-gradient(90deg, ${rankColor}44, ${rankColor})`,
                     boxShadow: isTop3 ? `0 0 8px ${rankColor}33` : "none",
+                    transition: "width 0.5s ease",
+                  }} />
+                </div>
+              </div>
+            </div>
+          );
+        } else if (type === "author") {
+          const barPct = ((entry.hotness_score ?? entry.citations ?? 0) / Math.max(...entries.map(e => e.hotness_score ?? e.citations ?? 0), 1)) * 100;
+          return (
+            <div
+              key={entry.key}
+              onClick={() => handleRowClick(entry)}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "60px 1fr 160px 90px 90px 90px 120px",
+                gap: 12,
+                padding: isTop3 ? "14px 16px" : "10px 16px",
+                borderBottom: "1px solid #0d1421",
+                cursor: "pointer",
+                background: isTop3 ? `${rankColor}06` : "transparent",
+                transition: "background 0.1s",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "#0a0f1a"}
+              onMouseLeave={e => e.currentTarget.style.background = isTop3 ? `${rankColor}06` : "transparent"}
+            >
+              <div style={{
+                fontFamily: PIXEL_FONT,
+                fontSize: isTop3 ? 14 : 10,
+                color: rankColor,
+                display: "flex", alignItems: "center",
+              }}>
+                {medal || `#${entry.rank}`}
+              </div>
+              <div style={{
+                fontFamily: isTop3 ? PIXEL_FONT : MONO_FONT,
+                fontSize: isTop3 ? 10 : 13,
+                color: isTop3 ? "#f1f5f9" : "#94a3b8",
+                display: "flex", alignItems: "center",
+                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+              }}>
+                {entry.name}
+              </div>
+              <div style={{
+                fontFamily: MONO_FONT, fontSize: 11, color: "#475569",
+                display: "flex", alignItems: "center",
+                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+              }}>
+                {entry.institution ?? "---"}
+              </div>
+              <div style={{ ...numCellStyle, color: "#00d4ff" }}>{fmtNum(entry.contributions ?? 0)}</div>
+              <div style={{ ...numCellStyle, color: "#34d399" }}>{fmtNum(entry.papers ?? entry.works_count ?? 0)}</div>
+              <div style={{ ...numCellStyle, color: "#a78bfa" }}>{fmtNum(entry.citations ?? 0)}</div>
+              <div style={{ display: "flex", alignItems: "center" }}>
+                <div style={{ flex: 1, height: isTop3 ? 10 : 6, background: "#0f172a", position: "relative", overflow: "hidden" }}>
+                  <div style={{
+                    position: "absolute", left: 0, top: 0, bottom: 0,
+                    width: `${barPct}%`,
+                    background: `linear-gradient(90deg, ${rankColor}44, ${rankColor})`,
                     transition: "width 0.5s ease",
                   }} />
                 </div>
@@ -403,4 +555,33 @@ const headerStyle: React.CSSProperties = {
   fontSize: 6,
   color: "#334155",
   letterSpacing: "0.08em",
+};
+
+const smallInputStyle: React.CSSProperties = {
+  background: "#0a0f1a",
+  border: "1px solid #1e293b",
+  color: "#e2e8f0",
+  fontFamily: "'Share Tech Mono', monospace",
+  fontSize: 12,
+  padding: "6px 10px",
+  outline: "none",
+  width: 80,
+};
+
+const selectStyle: React.CSSProperties = {
+  background: "#0a0f1a",
+  border: "1px solid #1e293b",
+  color: "#e2e8f0",
+  fontFamily: "'Share Tech Mono', monospace",
+  fontSize: 12,
+  padding: "6px 10px",
+  outline: "none",
+};
+
+const numCellStyle: React.CSSProperties = {
+  fontFamily: "'Share Tech Mono', monospace",
+  fontSize: 13,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "flex-end",
 };
