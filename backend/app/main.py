@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
@@ -16,28 +17,9 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
     # 스케줄러 시작
     setup_scheduler()
-    # 클러스터 캐시 백그라운드 워밍업
-    import asyncio
-    asyncio.create_task(_warmup_clusters())
     yield
     # 스케줄러 종료
     shutdown_scheduler()
-
-
-async def _warmup_clusters():
-    """서버 시작 후 클러스터 캐시를 백그라운드에서 미리 채운다."""
-    import asyncio
-    await asyncio.sleep(3)  # DB 연결 안정화 대기
-    try:
-        from app.db.database import AsyncSessionLocal
-        from app.api.routes.researchers import _build_clusters_cache, _clusters_cache, _clusters_cache_lock
-        async with _clusters_cache_lock:
-            if _clusters_cache is None:
-                async with AsyncSessionLocal() as db:
-                    await _build_clusters_cache(db)
-                    print("[startup] Clusters cache warmed up.")
-    except Exception as e:
-        print(f"[startup] Clusters warmup failed: {e}")
 
 
 app = FastAPI(title="ResearcherWorld API", lifespan=lifespan)

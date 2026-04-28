@@ -7,7 +7,6 @@ from sqlalchemy import select, func, text
 from app.db.database import get_db
 from app.models.researcher import Researcher
 from app.services.query_parser import parse_query
-from app.api.routes.researchers import _clusters_cache
 from app.services.paper_facets import canonicalize_facet_query
 
 router = APIRouter(prefix="/search", tags=["search"])

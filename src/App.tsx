@@ -1,8 +1,6 @@
 import { useState } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
 import { GlobePage }      from "./pages/GlobePage";
-import { TopicUniverse }  from "./pages/TopicUniverse";
-import { GraphPage }      from "./pages/GraphPage";
 import { BenchmarkPage }  from "./pages/BenchmarkPage";
 import { ResearchMap }    from "./pages/ResearchMap";
 import { TrendingPage }   from "./pages/TrendingPage";
@@ -38,24 +36,8 @@ export default function App() {
               />
             }
           />
-          <Route
-            path="/universe"
-            element={
-              <TopicUniverse
-                selected={selected}
-                onSelect={setSelected}
-              />
-            }
-          />
-          <Route
-            path="/graph"
-            element={
-              <GraphPage
-                selected={selected}
-                onSelect={setSelected}
-              />
-            }
-          />
+          <Route path="/universe" element={<Navigate to="/map" replace />} />
+          <Route path="/graph" element={<Navigate to="/" replace />} />
           <Route
             path="/benchmarks"
             element={<BenchmarkPage />}

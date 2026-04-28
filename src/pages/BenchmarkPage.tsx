@@ -485,27 +485,6 @@ export function BenchmarkPage() {
                 >
                   GLOBE ({matchedIds.length})
                 </button>
-                <button
-                  disabled={matchedIds.length === 0}
-                  onClick={() => {
-                    if (matchedIds.length > 0) {
-                      navigate(`/universe?highlight=${matchedIds.join(",")}`);
-                    }
-                  }}
-                  style={{
-                    padding: "8px 16px",
-                    fontFamily: PIXEL_FONT, fontSize: 8,
-                    letterSpacing: ".04em",
-                    background: matchedIds.length > 0 ? "#0d1117" : "#080b12",
-                    border: `1px solid ${matchedIds.length > 0 ? "#1e4976" : "#0f1520"}`,
-                    color: matchedIds.length > 0 ? "#a78bfa" : "#1e293b",
-                    cursor: matchedIds.length > 0 ? "pointer" : "default",
-                    opacity: matchedIds.length > 0 ? 1 : 0.5,
-                    transition: "all 0.15s",
-                  }}
-                >
-                  UNIVERSE ({matchedIds.length})
-                </button>
                 {matchedIds.length > 0 && (
                   <span style={{
                     fontFamily: MONO_FONT, fontSize: 10, color: "#334155",

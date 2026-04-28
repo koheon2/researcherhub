@@ -202,55 +202,9 @@ export function InfoCard({ researcher, related, onClose, onSelect }: InfoCardPro
 
       {/* Navigation links */}
       <div style={{
-        display: "grid", gridTemplateColumns: "1fr 1fr 1fr",
+        display: "grid", gridTemplateColumns: "1fr",
         borderBottom: "1px solid #0d1421",
       }}>
-        <button
-          onClick={() => navigate(`/universe?researcher=${researcher.id}`)}
-          style={{
-            display: "flex", alignItems: "center", justifyContent: "center",
-            padding: "9px 16px", gap: 6,
-            background: "transparent",
-            border: "none",
-            borderRight: "1px solid #0d1421",
-            color: "#334155", fontFamily: PIXEL_FONT, fontSize: 7,
-            cursor: "pointer", letterSpacing: "0.05em",
-            transition: "color 0.12s, background 0.12s",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = "#00d4ff";
-            e.currentTarget.style.background = "#00d4ff08";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = "#334155";
-            e.currentTarget.style.background = "transparent";
-          }}
-        >
-          UNIVERSE
-        </button>
-        <button
-          onClick={() => navigate(`/graph?researcher=${researcher.id}`)}
-          style={{
-            display: "flex", alignItems: "center", justifyContent: "center",
-            padding: "9px 16px", gap: 6,
-            background: "transparent",
-            border: "none",
-            borderRight: "1px solid #0d1421",
-            color: "#334155", fontFamily: PIXEL_FONT, fontSize: 7,
-            cursor: "pointer", letterSpacing: "0.05em",
-            transition: "color 0.12s, background 0.12s",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = "#a855f7";
-            e.currentTarget.style.background = "#a855f708";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = "#334155";
-            e.currentTarget.style.background = "transparent";
-          }}
-        >
-          GRAPH
-        </button>
         <button
           onClick={() => navigate(`/researcher/${researcher.id}`)}
           style={{

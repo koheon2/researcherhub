@@ -44,8 +44,6 @@ export function TopBar({ onSelect, visibleCount }: Props) {
 
   const NAV_TABS = [
     { label: "GLOBE",      path: "/" },
-    { label: "UNIVERSE",   path: "/universe" },
-    { label: "GRAPH",      path: "/graph" },
     { label: "BENCHMARKS", path: "/benchmarks" },
     { label: "MAP",        path: "/map" },
     { label: "TRENDING",   path: "/trending" },

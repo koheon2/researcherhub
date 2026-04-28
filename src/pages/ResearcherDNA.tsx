@@ -32,7 +32,6 @@ export function ResearcherDNA() {
   const navigate = useNavigate();
   const [researcher, setResearcher] = useState<Researcher | null>(null);
   const [related, setRelated] = useState<Researcher[]>([]);
-  const [topicNames, setTopicNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -50,20 +49,6 @@ export function ResearcherDNA() {
       .catch(e => console.error("Failed to load researcher:", e))
       .finally(() => setLoading(false));
   }, [id]);
-
-  // Load topic names for displaying
-  useEffect(() => {
-    fetch(`${API_BASE}/researchers/topics/clusters?limit=2000`)
-      .then(r => r.json())
-      .then((clusters: any[]) => {
-        const map: Record<string, string> = {};
-        for (const c of clusters) {
-          map[c.topic_id] = c.topic_name;
-        }
-        setTopicNames(map);
-      })
-      .catch(() => {});
-  }, []);
 
   const citationTrend = useMemo(
     () => researcher ? generateCitationTrend(researcher.citations) : [],
@@ -241,7 +226,7 @@ export function ResearcherDNA() {
           {topics && topics.length > 0 ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {topics.slice(0, 20).map((topicId, i) => {
-                const name = topicNames[topicId] || topicId;
+                const name = topicId;
                 const barPct = ((topics.length - i) / topics.length) * 100;
                 const barColor = Object.values(FIELD_COLORS)[i % Object.values(FIELD_COLORS).length];
                 return (
