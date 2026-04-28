@@ -71,6 +71,9 @@ INSTITUTION_ALIASES: dict[str, str] = {
     "carnegie mellon": "Carnegie Mellon University",
     "kaist": "Korea Advanced Institute of Science and Technology",
     "snu": "Seoul National University",
+    "postech": "Pohang University of Science and Technology",
+    "pohang university": "Pohang University of Science and Technology",
+    "pohang university of science and technology": "Pohang University of Science and Technology",
 }
 
 
