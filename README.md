@@ -19,6 +19,8 @@ ResearcherHub는 AI/CS 연구 논문과 연구자 정보를 기반으로 국가,
 - publication-year 기반 progress chart
 - 국가/기관/연구자 leaderboard
 - paper facet 기반 trending
+- 대표 논문 리스트와 paper detail 화면
+- OpenAlex reference/related works 기반 citation enrichment MVP
 - Transformer, Diffusion, RAG, LLM 등 세부 AI method facet 비교
 - VQA, reasoning, retrieval, code generation 등 task facet
 - medical imaging, robotics, autonomous driving 등 application facet
@@ -61,6 +63,7 @@ ResearcherHub는 AI/CS 연구 논문과 연구자 정보를 기반으로 국가,
 | --- | --- | --- |
 | Primary DB | PostgreSQL 16 권장 | 연구자, 논문, affiliation, facet, summary 저장 |
 | 원천 scholarly graph | OpenAlex snapshot/API | `researchers`, `papers`, `paper_authors` 수집 기반 |
+| Citation enrichment | OpenAlex Works API | 대표 논문 subset의 `referenced_works`, `related_works`, OA/source metadata 보강 |
 | 기관 정규화 | ROR dump + OpenAlex institutions snapshot | raw institution name을 canonical/ROR로 매핑 |
 | 논문 facet | seed dictionary + title/abstract keyword rules | aboutness/method/task/application weak-label 분류 |
 | 품질 필터 | `paper_quality_flags` | 원본 삭제 없이 제품 지표에서 conservative exclude 적용 |
@@ -106,6 +109,10 @@ ResearcherHub는 AI/CS 연구 논문과 연구자 정보를 기반으로 국가,
 | `publication_author_country_year_stats` | 국가/연도/저자별 publication-time author leaderboard 요약 |
 | `publication_author_facet_year_stats` | 국가/연도/facet/저자별 세부 토픽 author leaderboard 요약 |
 | `paper_quality_flags` | 원본 보존형 paper 품질 플래그 |
+| `paper_enrichment_status` | reference enrichment 후보/상태/재시도 관리 |
+| `paper_openalex_enrichments` | OpenAlex Works API에서 보강한 source/OA/reference metadata |
+| `paper_reference_edges` | 논문 citation/reference edge. 로컬 DB paper와 매칭되면 `target_paper_id` 저장 |
+| `paper_related_edges` | OpenAlex related works edge와 rank |
 
 `paper_author_affiliations`는 국가/기관 비교의 기준입니다. 연구자의 현재 소속이 아니라 논문이 발표된 시점의 저자 소속을 contribution 단위로 계산합니다.
 
@@ -214,6 +221,90 @@ GET /api/leaderboard?type=institution&field=AI&limit=20
 GET /api/leaderboard?type=institution&field=Computer%20Vision&limit=20
 ```
 
+## Citation Enrichment MVP
+
+Paper detail과 citation 기반 탐색을 위해 대표 논문 subset에 대해 OpenAlex Works API의 `referenced_works`, `related_works`, source/OA metadata를 보강합니다. 전체 2,000만+ 논문을 한 번에 보강하지 않고, top cited/hot/facet 기반 후보를 먼저 뽑아 시연 가능한 citation graph layer를 만듭니다.
+
+현재 로컬 적용 결과:
+
+| 항목 | 값 |
+| --- | ---: |
+| enrichment 대상 papers | `30,000` |
+| fetched papers | `30,000` |
+| failed papers | `0` |
+| reference edges | `1,870,005` |
+| local DB에 매칭된 reference edges | `1,119,879` |
+| internal reference ratio | `59.95%` |
+| related edges | `304,879` |
+| enrichment rows | `30,000` |
+
+대략적인 저장 용량:
+
+| 테이블 | 크기 |
+| --- | ---: |
+| `paper_reference_edges` | `380 MB` |
+| `paper_openalex_enrichments` | `45 MB` |
+| `paper_related_edges` | `55 MB` |
+
+운영 순서:
+
+```bash
+cd backend
+.venv/bin/alembic -c alembic.ini upgrade head
+
+# 1. 후보 선별 결과 확인
+.venv/bin/python -m scripts.select_reference_enrichment_candidates --limit 50
+
+# 2. 후보 seed. 이미 있는 fetched row는 유지되고, pending 후보만 추가됩니다.
+.venv/bin/python -m scripts.seed_reference_enrichment_candidates \
+  --limit 30000 \
+  --include-preprints \
+  --allow-missing-abstract \
+  --allow-without-facet \
+  --min-citations 100 \
+  --recent-min-citations 20
+
+# 3. OpenAlex reference/related works 수집
+.venv/bin/python -m scripts.enrich_openalex_references \
+  --limit 30000 \
+  --batch-size 100 \
+  --concurrency 7
+```
+
+`enrich_openalex_references`는 idempotent/resumable하게 설계되어 있습니다.
+
+- `fetched` row는 다시 가져오지 않습니다.
+- 실행 중 끊긴 `in_progress` row는 기본 120분 뒤 stale candidate로 다시 claim됩니다.
+- 실패 row를 다시 시도하려면 `--retry-failed`를 붙입니다.
+- edge는 `(source_paper_id, target_openalex_id, source)` 기준으로 upsert됩니다.
+
+진행 상태 확인:
+
+```bash
+psql postgresql://localhost:5432/researcherhub_codex -P pager=off -c "
+SELECT status, COUNT(*)
+FROM paper_enrichment_status
+GROUP BY status
+ORDER BY status;
+
+SELECT
+  COUNT(*) AS reference_edges,
+  COUNT(*) FILTER (WHERE target_paper_id IS NOT NULL) AS internal_edges
+FROM paper_reference_edges;
+"
+```
+
+Paper detail API:
+
+```text
+GET /api/papers/representative?limit=20
+GET /api/papers/{paper_id}
+GET /api/papers/{paper_id}/references?limit=20
+GET /api/papers/{paper_id}/citation-graph?depth=1&limit=100
+```
+
+프론트에서는 `/papers/:id`에서 상세 정보와 referenced papers를 확인할 수 있습니다.
+
 ## Full DB Dump로 시작하기
 
 전체 데이터를 바로 재현하려면 GitHub repo와 별도로 전달되는 PostgreSQL custom-format dump를 복구합니다. DB dump는 Git에 포함하지 않는 artifact입니다.
@@ -272,6 +363,8 @@ OPENAI_API_KEY=your-openai-api-key
 ```
 
 풀 덤프에는 schema, data, index, Alembic version이 포함되어 있습니다. 따라서 풀 덤프 복구 경로에서는 migration을 새로 적용하는 것이 아니라 현재 revision을 확인하는 용도로 실행합니다.
+
+단, 전달받은 dump가 citation enrichment 이전에 생성된 경우 `paper_reference_edges` 등 최신 citation layer 데이터는 포함되어 있지 않을 수 있습니다. 이 경우 복구 후 `Citation Enrichment MVP` 섹션의 seed/fetch 명령을 실행하면 됩니다.
 
 ```bash
 cd backend
@@ -395,6 +488,8 @@ cd backend
 .venv/bin/python -m scripts.backfill_paper_quality_flags
 .venv/bin/python -m scripts.backfill_institution_name_matches
 .venv/bin/python -m scripts.refresh_publication_summaries
+.venv/bin/python -m scripts.seed_reference_enrichment_candidates --limit 30000 --include-preprints --allow-missing-abstract --allow-without-facet
+.venv/bin/python -m scripts.enrich_openalex_references --limit 30000 --batch-size 100 --concurrency 7
 ```
 
 ## 검증 명령
@@ -440,6 +535,8 @@ GET /api/trending?axis=method&limit=20
 GET /api/leaderboard?type=country&limit=20
 GET /api/leaderboard?type=institution&field=AI&limit=20
 GET /api/search/universal?q=Transformer%20vs%20Diffusion
+GET /api/papers/representative?limit=20
+GET /api/papers/W4312933868/references?limit=20
 ```
 
 ## Git에 포함하지 않는 것
@@ -475,13 +572,15 @@ GET /api/search/universal?q=Transformer%20vs%20Diffusion
 - OpenAlex aboutness/topic 품질은 거칠 수 있습니다.
 - ROR 기반 기관 정규화는 local snapshot exact/fuzzy v0이며, ambiguous/unmatched 상위 기관은 별도 alias curation이 필요합니다.
 - benchmark score, dataset, metric extraction은 아직 구현하지 않았습니다.
+- citation enrichment는 현재 대표 3만 개 subset MVP입니다. 전체 DB citation graph가 아닙니다.
 - 대용량 전체 DB를 그대로 배포하는 구조는 비용 효율적이지 않습니다. 배포용으로는 summary table 중심의 slim DB가 필요합니다.
 
 ## 다음 단계
 
 1. 배포용 slim DB 생성
-2. frontend API base URL 환경변수화
-3. Postgres FTS/trgm 기반 검색 개선
-4. institution alias curation / ROR API fallback
-5. facet taxonomy v1
-6. result/benchmark extraction
+2. citation graph API/프론트 시각화 고도화
+3. frontend API base URL 환경변수화
+4. Postgres FTS/trgm 기반 검색 개선
+5. institution alias curation / ROR API fallback
+6. facet taxonomy v1
+7. result/benchmark extraction

@@ -58,6 +58,7 @@ backend/.venv/
 backend/pipeline_state.json
 backend/snapshot_state.json
 backend/institution_coords_cache.json
+output/
 LOCAL_AGENT_CONTEXT.md
 
 # Large local data artifacts. Keep lightweight seed/config files tracked.

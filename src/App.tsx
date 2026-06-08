@@ -8,6 +8,7 @@ import { ResearcherDNA }  from "./pages/ResearcherDNA";
 import { ProgressPage }   from "./pages/ProgressPage";
 import { LeaderboardPage } from "./pages/LeaderboardPage";
 import { PaperTimelinePage } from "./pages/PaperTimelinePage";
+import { PaperDetailPage } from "./pages/PaperDetailPage";
 import { TopBar }          from "./components/TopBar";
 import type { Researcher } from "./data/researchers";
 
@@ -66,6 +67,10 @@ export default function App() {
           <Route
             path="/timeline"
             element={<PaperTimelinePage />}
+          />
+          <Route
+            path="/papers/:id"
+            element={<PaperDetailPage />}
           />
         </Routes>
       </div>

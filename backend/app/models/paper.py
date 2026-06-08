@@ -7,6 +7,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    JSON,
     SmallInteger,
     String,
     Text,
@@ -194,6 +195,108 @@ class PaperQualityFlag(Base):
         Index("ix_pqf_flag_type", "flag_type"),
         Index("ix_pqf_paper_id", "paper_id"),
         Index("ix_pqf_paper_severity", "paper_id", "severity"),
+    )
+
+
+class PaperEnrichmentStatus(Base):
+    __tablename__ = "paper_enrichment_status"
+
+    paper_id = Column(
+        String(20),
+        ForeignKey("papers.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+    source = Column(String(64), primary_key=True, nullable=False)
+    status = Column(String(16), nullable=False, default="pending")
+    candidate_bucket = Column(String(128))
+    candidate_score = Column(Float)
+    attempt_count = Column(Integer, nullable=False, default=0)
+    last_attempted_at = Column(DateTime(timezone=True))
+    fetched_at = Column(DateTime(timezone=True))
+    error = Column(Text)
+    referenced_works_count = Column(Integer, nullable=False, default=0)
+    related_works_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_pes_status_source", "source", "status"),
+        Index("ix_pes_candidate_score", "candidate_score"),
+    )
+
+
+class PaperOpenAlexEnrichment(Base):
+    __tablename__ = "paper_openalex_enrichments"
+
+    paper_id = Column(
+        String(20),
+        ForeignKey("papers.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+    openalex_id = Column(String(32), nullable=False)
+    publication_date = Column(String(32))
+    language = Column(String(16))
+    source_id = Column(String(64))
+    source_display_name = Column(String(500))
+    source_type = Column(String(64))
+    landing_page_url = Column(Text)
+    pdf_url = Column(Text)
+    best_oa_url = Column(Text)
+    is_oa = Column(Boolean, nullable=False, default=False)
+    ids = Column(JSON)
+    primary_location = Column(JSON)
+    best_oa_location = Column(JSON)
+    referenced_works_count = Column(Integer, nullable=False, default=0)
+    related_works_count = Column(Integer, nullable=False, default=0)
+    fetched_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_poe_source_display_name", "source_display_name"),
+        Index("ix_poe_source_type", "source_type"),
+    )
+
+
+class PaperReferenceEdge(Base):
+    __tablename__ = "paper_reference_edges"
+
+    source_paper_id = Column(
+        String(20),
+        ForeignKey("papers.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+    target_openalex_id = Column(String(32), primary_key=True, nullable=False)
+    target_paper_id = Column(String(20), ForeignKey("papers.id", ondelete="SET NULL"))
+    source = Column(String(64), primary_key=True, nullable=False)
+    observed_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_pre_source_paper", "source_paper_id"),
+        Index("ix_pre_target_openalex", "target_openalex_id"),
+        Index("ix_pre_target_paper", "target_paper_id"),
+    )
+
+
+class PaperRelatedEdge(Base):
+    __tablename__ = "paper_related_edges"
+
+    source_paper_id = Column(
+        String(20),
+        ForeignKey("papers.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+    target_openalex_id = Column(String(32), primary_key=True, nullable=False)
+    target_paper_id = Column(String(20), ForeignKey("papers.id", ondelete="SET NULL"))
+    rank = Column(Integer, nullable=False)
+    source = Column(String(64), primary_key=True, nullable=False)
+    observed_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_prel_source_paper", "source_paper_id"),
+        Index("ix_prel_target_paper", "target_paper_id"),
     )
 
 

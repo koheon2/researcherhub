@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 const API_BASE = "http://localhost:8000/api";
 const PIXEL_FONT = "'Press Start 2P', monospace";
@@ -49,6 +49,16 @@ interface TimelineResponse {
   by_year: YearGroup[];
 }
 
+interface RepresentativeResponse {
+  topic: string | null;
+  query: string | null;
+  matched_axes: string[];
+  match_kind: string;
+  sort: string;
+  limit: number;
+  papers: Paper[];
+}
+
 function fmtNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
   if (n >= 1_000)     return (n / 1_000).toFixed(1) + "K";
@@ -83,7 +93,9 @@ export function PaperTimelinePage() {
   const [perYear, setPerYear] = useState(3);
   const [minFwci, setMinFwci] = useState(2.0);
   const [data, setData] = useState<TimelineResponse | null>(null);
+  const [representative, setRepresentative] = useState<RepresentativeResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [representativeLoading, setRepresentativeLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const topicCacheRef = useRef<Map<string, TopicOption[]>>(new Map());
   const topicAbortRef = useRef<AbortController | null>(null);
@@ -159,9 +171,35 @@ export function PaperTimelinePage() {
     }
   }, [perYear, minFwci]);
 
+  const fetchRepresentative = useCallback(async (topic: string, axis: string) => {
+    if (!topic) return;
+    setRepresentativeLoading(true);
+    try {
+      const params = new URLSearchParams({
+        topic,
+        limit: "16",
+        sort: "impact",
+        year_from: "2017",
+      });
+      if (axis) params.set("axis", axis);
+      const res = await fetch(`${API_BASE}/papers/representative?${params}`);
+      if (!res.ok) throw new Error(`Representative papers failed: ${res.status}`);
+      const json: RepresentativeResponse = await res.json();
+      setRepresentative(json);
+    } catch (e) {
+      console.error("Failed to fetch representative papers:", e);
+      setRepresentative(null);
+    } finally {
+      setRepresentativeLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    if (selectedTopic) fetchTimeline(selectedTopic, selectedAxis);
-  }, [selectedTopic, selectedAxis, fetchTimeline]);
+    if (selectedTopic) {
+      fetchTimeline(selectedTopic, selectedAxis);
+      fetchRepresentative(selectedTopic, selectedAxis);
+    }
+  }, [selectedTopic, selectedAxis, fetchTimeline, fetchRepresentative]);
 
   const handlePickTopic = (option: TopicOption) => {
     setSelectedTopic(option.topic);
@@ -175,6 +213,7 @@ export function PaperTimelinePage() {
     setSelectedAxis("");
     setTopicQuery("");
     setData(null);
+    setRepresentative(null);
     setSearchParams({});
     fetchTopics("");
   };
@@ -369,6 +408,98 @@ export function PaperTimelinePage() {
           </div>
         )}
 
+        {!loading && selectedTopic && (
+          <section style={{ marginBottom: 28 }}>
+            <div style={{
+              display: "flex", alignItems: "baseline", justifyContent: "space-between",
+              gap: 16, marginBottom: 10,
+            }}>
+              <div style={{ fontFamily: PIXEL_FONT, fontSize: 8, color: "#64748b", letterSpacing: "0.08em" }}>
+                REPRESENTATIVE PAPERS
+              </div>
+              {representative && (
+                <div style={{ fontFamily: MONO_FONT, fontSize: 11, color: "#475569" }}>
+                  {representative.match_kind} · {representative.sort}
+                </div>
+              )}
+            </div>
+
+            {representativeLoading && (
+              <div style={{ fontFamily: MONO_FONT, fontSize: 12, color: "#475569", padding: "12px 0" }}>
+                Loading representative papers...
+              </div>
+            )}
+
+            {!representativeLoading && representative && representative.papers.length > 0 && (
+              <div style={{ border: "1px solid #1e293b" }}>
+                {representative.papers.map((paper, idx) => (
+                  <Link
+                    key={paper.id}
+                    to={`/papers/${encodeURIComponent(paper.id)}`}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "36px minmax(0, 1fr) 74px 88px 72px",
+                      gap: 12,
+                      alignItems: "center",
+                      padding: "10px 12px",
+                      borderBottom: idx === representative.papers.length - 1 ? "none" : "1px solid #0f172a",
+                      color: "inherit",
+                      textDecoration: "none",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#06080f")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                  >
+                    <div style={{ fontFamily: MONO_FONT, fontSize: 12, color: "#475569" }}>
+                      {idx + 1}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{
+                        fontFamily: MONO_FONT,
+                        fontSize: 13,
+                        lineHeight: 1.35,
+                        color: "#e2e8f0",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}>
+                        {paper.title || "(untitled)"}
+                      </div>
+                      {paper.authors.length > 0 && (
+                        <div style={{
+                          fontFamily: MONO_FONT,
+                          fontSize: 10,
+                          color: "#64748b",
+                          marginTop: 3,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}>
+                          {paper.authors.map(a => a.name).filter(Boolean).join(" · ")}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ fontFamily: MONO_FONT, fontSize: 12, color: "#94a3b8", textAlign: "right" }}>
+                      {paper.year}
+                    </div>
+                    <div style={{ fontFamily: MONO_FONT, fontSize: 12, color: "#fbbf24", textAlign: "right" }}>
+                      {fmtNum(paper.citations)} cit
+                    </div>
+                    <div style={{ fontFamily: MONO_FONT, fontSize: 12, color: "#34d399", textAlign: "right" }}>
+                      {paper.fwci != null ? paper.fwci.toFixed(1) : "—"}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            {!representativeLoading && representative && representative.papers.length === 0 && (
+              <div style={{ fontFamily: MONO_FONT, fontSize: 12, color: "#475569" }}>
+                No representative papers found.
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Timeline */}
         {!loading && data && data.by_year.length === 0 && (
           <div style={{
@@ -418,20 +549,14 @@ export function PaperTimelinePage() {
                         fontFamily: MONO_FONT, fontSize: 14, color: "#e2e8f0",
                         lineHeight: 1.5, marginBottom: 8,
                       }}>
-                        {p.doi ? (
-                          <a
-                            href={`https://doi.org/${p.doi}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{ color: "#e2e8f0", textDecoration: "none" }}
-                            onMouseEnter={(e) => (e.currentTarget.style.color = "#00d4ff")}
-                            onMouseLeave={(e) => (e.currentTarget.style.color = "#e2e8f0")}
-                          >
-                            {p.title || "(untitled)"}
-                          </a>
-                        ) : (
-                          p.title || "(untitled)"
-                        )}
+                        <Link
+                          to={`/papers/${encodeURIComponent(p.id)}`}
+                          style={{ color: "#e2e8f0", textDecoration: "none" }}
+                          onMouseEnter={(e) => (e.currentTarget.style.color = "#00d4ff")}
+                          onMouseLeave={(e) => (e.currentTarget.style.color = "#e2e8f0")}
+                        >
+                          {p.title || "(untitled)"}
+                        </Link>
                       </div>
 
                       {/* Authors */}

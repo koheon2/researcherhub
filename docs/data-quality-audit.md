@@ -286,3 +286,35 @@ Milestone 2.5에서 로컬 OpenAlex institutions snapshot과 ROR dump 기반 pub
 | Stanford University | US | Stanford University | `00f54p054` |
 | Korea Advanced Institute of Science and Technology | KR | Korea Advanced Institute of Science and Technology | `05apxxy63` |
 | Seoul National University | KR | Seoul National University | `04h9pn542` |
+
+## 적용된 Citation Enrichment MVP 결과
+
+Paper detail과 citation 기반 탐색을 위해 대표 논문 subset 30,000개에 대해 OpenAlex Works API의 `referenced_works`, `related_works`, source/OA metadata를 보강했다. 이 단계는 전체 2,000만+ 논문의 완전한 citation graph가 아니라, 시연 가능한 MVP subset이다.
+
+적용 결과:
+
+| 항목 | count |
+| --- | ---: |
+| enrichment target papers | 30,000 |
+| fetched papers | 30,000 |
+| failed papers | 0 |
+| reference edges | 1,870,005 |
+| internal reference edges | 1,119,879 |
+| related edges | 304,879 |
+| enrichment metadata rows | 30,000 |
+
+내부 reference ratio는 약 59.95%다. 즉, OpenAlex에서 받은 referenced work 중 약 60%가 현재 로컬 `papers` 테이블의 OpenAlex work id와 연결된다.
+
+대표 smoke:
+
+| paper | total references | internal references | sample internal references |
+| --- | ---: | ---: | --- |
+| `W4312933868` | 165 | 67 | VGG, ImageNet, VAE |
+| `W3138516171` | 140 | 71 | ResNet, AlexNet, VGG |
+
+운영 판단:
+
+- citation graph 기능은 우선 대표 논문 subset 중심으로 제공한다.
+- 전체 DB citation graph를 만들기 전에 candidate selection, API 응답 shape, paper detail UX를 먼저 검증한다.
+- 수집 스크립트는 중단 후 재개 가능하게 유지한다.
+- reference edge는 OpenAlex id 기준으로 저장하고, 로컬 DB에 존재하는 target만 `target_paper_id`를 채운다.
