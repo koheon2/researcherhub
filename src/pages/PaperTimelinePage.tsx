@@ -158,7 +158,7 @@ export function PaperTimelinePage() {
     setLoading(true);
     try {
       const axisParam = axis ? `&axis=${encodeURIComponent(axis)}` : "";
-      const url = `${API_BASE}/papers/timeline?topic=${encodeURIComponent(topic)}${axisParam}&per_year=${perYear}&min_fwci=${minFwci}`;
+      const url = `${API_BASE}/papers/timeline?topic=${encodeURIComponent(topic)}${axisParam}&per_year=${perYear}&min_fwci=${minFwci}&year_from=2017`;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`Timeline fetch failed: ${res.status}`);
       const json: TimelineResponse = await res.json();

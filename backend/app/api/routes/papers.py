@@ -386,7 +386,7 @@ async def list_topics(
 async def representative_papers(
     topic: str | None = Query(None, description="Facet/topic query. Empty returns globally cited papers."),
     axis: str | None = Query(None, pattern=AXIS_PATTERN),
-    year_from: int | None = Query(None),
+    year_from: int | None = Query(2017),
     year_to: int | None = Query(None),
     limit: int = Query(20, ge=1, le=100),
     sort: str = Query("impact", pattern="^(impact|recent|citations)$"),
@@ -538,7 +538,7 @@ async def get_topic_timeline(
     axis: str | None = Query(None, pattern=AXIS_PATTERN),
     per_year: int = Query(3, ge=1, le=10),
     min_fwci: float = Query(2.0, ge=0.0, description="FWCI floor; null FWCI rows are still kept"),
-    year_from: int | None = Query(None),
+    year_from: int | None = Query(2017),
     year_to: int | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
