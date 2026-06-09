@@ -4,7 +4,7 @@ import type { Researcher } from "../data/researchers";
 import { ComparisonPanel } from "./ComparisonPanel";
 
 interface UniversalResult {
-  intent: "researcher_search" | "topic_map" | "benchmark" | "stats" | "comparison" | "trending" | "progress" | "leaderboard" | "researcher_dna";
+  intent: "researcher_search" | "topic_map" | "benchmark" | "stats" | "comparison" | "trending" | "progress" | "leaderboard" | "researcher_dna" | "institution_profile";
   params: Record<string, string>;
   explanation: string;
   redirect: string | null;

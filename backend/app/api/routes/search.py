@@ -45,6 +45,46 @@ TREND_QUERY_TERMS = ("추이", "흐름", "성장", "변화", "트렌드", "trend
 AUTHOR_RANKING_TERMS = ("연구자", "researcher", "researchers", "author", "authors")
 HOT_QUERY_TERMS = ("핫", "뜨는", "최근", "hot", "rising", "trending", "recent")
 TOP_QUERY_TERMS = ("상위", "순위", "랭킹", "top", "leaderboard", "ranking")
+INSTITUTION_PROFILE_TERMS = (
+    "학교",
+    "기관",
+    "대학",
+    "강한",
+    "분야",
+    "실적",
+    "대표 논문",
+    "프로필",
+    "university",
+    "institution",
+    "profile",
+    "strength",
+    "strong",
+    "papers",
+)
+
+INSTITUTION_QUERY_ALIASES = {
+    "kaist": "KAIST",
+    "카이스트": "KAIST",
+    "korea advanced institute of science and technology": "KAIST",
+    "snu": "SNU",
+    "서울대": "SNU",
+    "서울대학교": "SNU",
+    "seoul national university": "SNU",
+    "mit": "MIT",
+    "massachusetts institute of technology": "MIT",
+    "stanford": "Stanford",
+    "stanford university": "Stanford",
+    "cmu": "Carnegie Mellon University",
+    "carnegie mellon": "Carnegie Mellon University",
+    "carnegie mellon university": "Carnegie Mellon University",
+    "berkeley": "University of California, Berkeley",
+    "uc berkeley": "University of California, Berkeley",
+    "tsinghua": "Tsinghua University",
+    "칭화": "Tsinghua University",
+    "칭화대": "Tsinghua University",
+    "oxford": "University of Oxford",
+    "cambridge": "University of Cambridge",
+}
 
 
 async def _topic_paper_count(db: AsyncSession, topic: str) -> tuple[str, int]:
@@ -144,6 +184,34 @@ def _parse_author_leaderboard(q: str) -> dict[str, str] | None:
     return params
 
 
+def _parse_institution_profile(q: str) -> str | None:
+    normalized = q.strip().lower()
+    if not normalized:
+        return None
+
+    matched_institution = None
+    for alias, canonical in INSTITUTION_QUERY_ALIASES.items():
+        if alias.isascii():
+            matched = re.search(rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])", normalized) is not None
+        else:
+            matched = alias in normalized
+        if matched:
+            matched_institution = canonical
+            break
+
+    if not matched_institution:
+        return None
+
+    if any(term in normalized for term in INSTITUTION_PROFILE_TERMS):
+        return matched_institution
+
+    # Very short direct institution queries should also open the profile.
+    if normalized in INSTITUTION_QUERY_ALIASES:
+        return matched_institution
+
+    return None
+
+
 @router.get("/universal")
 async def universal_search(
     q: str = Query(..., min_length=1),
@@ -157,6 +225,17 @@ async def universal_search(
     - answer: direct answer for stats queries
     """
     normalized_q = q.strip().lower()
+    institution_profile = _parse_institution_profile(q)
+    if institution_profile:
+        return {
+            "intent": "institution_profile",
+            "params": {"name": institution_profile},
+            "explanation": f"{institution_profile}의 publication-time 기준 강한 분야, 핵심 연구자, 대표 논문을 보여드립니다.",
+            "redirect": f"/institutions/{institution_profile}",
+            "answer": None,
+            "answer_label": None,
+        }
+
     author_leaderboard = _parse_author_leaderboard(q)
     if author_leaderboard:
         return {
@@ -286,6 +365,19 @@ async def universal_search(
             "answer": None,
             "answer_label": None,
         }
+
+    # ── Institution profile ──────────────────────────────────────────────────
+    if intent == "institution_profile":
+        name = parsed.get("institution") or parsed.get("name") or parsed.get("query")
+        if name:
+            return {
+                "intent": "institution_profile",
+                "params": {"name": str(name)},
+                "explanation": parsed.get("explanation", ""),
+                "redirect": f"/institutions/{name}",
+                "answer": None,
+                "answer_label": None,
+            }
 
     # ── Researcher DNA ────────────────────────────────────────────────────────
     if intent == "researcher_dna":

@@ -47,6 +47,9 @@ Available intents:
 9. "researcher_dna"    — deep analysis of a specific researcher's profile
                          - name: researcher's name
                          (e.g. "Hinton DNA", "Bengio 분석", "analyze LeCun")
+10. "institution_profile" — deep analysis of a university/institution profile
+                         - institution: institution name or common alias
+                         (e.g. "KAIST 강한 분야", "서울대 대표 논문", "MIT profile")
 
 Fields for researcher_search:
   - field: one of ["AI", "Computer Vision", "NLP", "Networks", "Theory & Math",
@@ -130,6 +133,12 @@ User: "한국에서 최근 핫한 디퓨전 연구자"
 
 User: "Hinton DNA 분석"
 → {"intent":"researcher_dna","name":"Hinton","explanation":"Geoffrey Hinton의 연구 DNA를 분석합니다."}
+
+User: "KAIST 강한 분야 보여줘"
+→ {"intent":"institution_profile","institution":"KAIST","explanation":"KAIST의 강한 연구 분야와 대표 논문을 보여드립니다."}
+
+User: "서울대 AI 실적"
+→ {"intent":"institution_profile","institution":"SNU","explanation":"서울대학교의 AI 관련 연구 실적을 보여드립니다."}
 """
 
 
